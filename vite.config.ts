@@ -8,11 +8,34 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: '0.0.0.0',
+        proxy: {
+          '/proxy-whatai': {
+            target: env.WHATAI_BASE_URL || 'https://api.whatai.cc',
+            changeOrigin: true,
+            secure: true,
+            rewrite: (path) => path.replace(/^\/proxy-whatai/, ''),
+            configure: (proxy) => {
+              proxy.on('proxyReq', (proxyReq) => {
+                const key = env.WHATAI_API_KEY;
+                if (key) {
+                  proxyReq.setHeader('Authorization', `Bearer ${key}`);
+                }
+                proxyReq.setHeader('Accept', 'application/json');
+                // 不强制设置Content-Type，让客户端代码自己设置
+              });
+            },
+          }
+        }
       },
       plugins: [react()],
       define: {
-        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
+        'process.env.WHATAI_BASE_URL': JSON.stringify(env.WHATAI_BASE_URL || 'https://api.whatai.cc'),
+        'process.env.WHATAI_API_KEY': JSON.stringify(env.WHATAI_API_KEY),
+        'process.env.WHATAI_TEXT_MODEL': JSON.stringify(env.WHATAI_TEXT_MODEL || 'gemini-2.0-flash-exp'),
+        'process.env.WHATAI_IMAGE_GENERATION_MODEL': JSON.stringify(env.WHATAI_IMAGE_GENERATION_MODEL || 'qwen-image'),
+        'process.env.WHATAI_IMAGE_EDIT_MODEL': JSON.stringify(env.WHATAI_IMAGE_EDIT_MODEL || 'gemini-2.5-flash-image'),
+        'process.env.WHATAI_VIDEO_MODEL': JSON.stringify(env.WHATAI_VIDEO_MODEL || 'vidu-1'),
+        'process.env.PROXY_VIA_VITE': JSON.stringify(env.PROXY_VIA_VITE || 'true')
       },
       resolve: {
         alias: {
