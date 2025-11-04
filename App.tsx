@@ -289,6 +289,127 @@ const rasterizeElements = (elementsToRasterize: Exclude<Element, ImageElement | 
     });
 };
 
+// Flatten mixed element types (including images, excluding videos) into a single PNG
+const flattenElementsToImage = (
+    elementsToFlatten: Element[]
+): Promise<{ href: string; mimeType: 'image/png', width: number, height: number, x: number, y: number }> => {
+    return new Promise((resolve, reject) => {
+        const validElements = elementsToFlatten.filter(el => el.type !== 'video');
+        if (validElements.length === 0) {
+            return reject(new Error('No valid elements to flatten.'));
+        }
+
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        validElements.forEach(element => {
+            const bounds = getElementBounds(element, validElements);
+            minX = Math.min(minX, bounds.x);
+            minY = Math.min(minY, bounds.y);
+            maxX = Math.max(maxX, bounds.x + bounds.width);
+            maxY = Math.max(maxY, bounds.y + bounds.height);
+        });
+
+        const combinedWidth = maxX - minX;
+        const combinedHeight = maxY - minY;
+
+        if (combinedWidth <= 0 || combinedHeight <= 0) {
+            return reject(new Error('Cannot flatten elements with zero or negative dimensions.'));
+        }
+
+        const offsetX = -minX;
+        const offsetY = -minY;
+
+        const elementSvgStrings = validElements.map(element => {
+            let elementSvgString = '';
+            switch (element.type) {
+                case 'image': {
+                    elementSvgString = `<image href="${element.href}" x="${element.x + offsetX}" y="${element.y + offsetY}" width="${element.width}" height="${element.height}" />`;
+                    break;
+                }
+                case 'path': {
+                    const pointsWithOffset = element.points.map(p => ({ x: p.x + offsetX, y: p.y + offsetY }));
+                    const pathData = pointsWithOffset.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+                    elementSvgString = `<path d="${pathData}" stroke="${element.strokeColor}" stroke-width="${element.strokeWidth}" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="${element.strokeOpacity || 1}" />`;
+                    break;
+                }
+                case 'shape': {
+                    const shapeProps = `transform="translate(${element.x + offsetX}, ${element.y + offsetY})" fill="${element.fillColor}" stroke="${element.strokeColor}" stroke-width="${element.strokeWidth}"`;
+                    if (element.shapeType === 'rectangle') elementSvgString = `<rect width="${element.width}" height="${element.height}" rx="${element.borderRadius || 0}" ry="${element.borderRadius || 0}" ${shapeProps} />`;
+                    else if (element.shapeType === 'circle') elementSvgString = `<ellipse cx="${element.width/2}" cy="${element.height/2}" rx="${element.width/2}" ry="${element.height/2}" ${shapeProps} />`;
+                    else if (element.shapeType === 'triangle') elementSvgString = `<polygon points="${element.width/2},0 0,${element.height} ${element.width},${element.height}" ${shapeProps} />`;
+                    break;
+                }
+                case 'arrow': {
+                    const [start, end] = element.points;
+                    const angle = Math.atan2(end.y - start.y, end.x - start.x);
+                    const headLength = element.strokeWidth * 4;
+                    const arrowHeadHeight = headLength * Math.cos(Math.PI / 6);
+                    const lineEnd = {
+                        x: end.x - arrowHeadHeight * Math.cos(angle),
+                        y: end.y - arrowHeadHeight * Math.sin(angle),
+                    };
+                    const headPoint1 = { x: end.x - headLength * Math.cos(angle - Math.PI / 6), y: end.y - headLength * Math.sin(angle - Math.PI / 6) };
+                    const headPoint2 = { x: end.x - headLength * Math.cos(angle + Math.PI / 6), y: end.y - headLength * Math.sin(angle + Math.PI / 6) };
+                    elementSvgString = `
+                        <line x1="${start.x + offsetX}" y1="${start.y + offsetY}" x2="${lineEnd.x + offsetX}" y2="${lineEnd.y + offsetY}" stroke="${element.strokeColor}" stroke-width="${element.strokeWidth}" stroke-linecap="round" />
+                        <polygon points="${end.x + offsetX},${end.y + offsetY} ${headPoint1.x + offsetX},${headPoint1.y + offsetY} ${headPoint2.x + offsetX},${headPoint2.y + offsetY}" fill="${element.strokeColor}" />
+                    `;
+                    break;
+                }
+                case 'line': {
+                    const [start, end] = element.points;
+                    elementSvgString = `<line x1="${start.x + offsetX}" y1="${start.y + offsetY}" x2="${end.x + offsetX}" y2="${end.y + offsetY}" stroke="${element.strokeColor}" stroke-width="${element.strokeWidth}" stroke-linecap="round" />`;
+                    break;
+                }
+                case 'text': {
+                    elementSvgString = `
+                        <foreignObject x="${element.x + offsetX}" y="${element.y + offsetY}" width="${element.width}" height="${element.height}">
+                            <div xmlns="http://www.w3.org/1999/xhtml" style="font-size: ${element.fontSize}px; color: ${element.fontColor}; width: 100%; height: 100%; word-break: break-word; font-family: sans-serif; padding:0; margin:0; line-height: 1.2;">
+                                ${element.text.replace(/\n/g, '<br />')}
+                            </div>
+                        </foreignObject>
+                    `;
+                    break;
+                }
+                case 'group': {
+                    elementSvgString = '';
+                    break;
+                }
+            }
+            return elementSvgString;
+        }).join('');
+
+        const fullSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${combinedWidth}" height="${combinedHeight}">${elementSvgStrings}</svg>`;
+
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        const svgDataUrl = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(fullSvg)))}`;
+
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = combinedWidth;
+            canvas.height = combinedHeight;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+                ctx.drawImage(img, 0, 0);
+                resolve({
+                    href: canvas.toDataURL('image/png'),
+                    mimeType: 'image/png',
+                    width: combinedWidth,
+                    height: combinedHeight,
+                    x: minX,
+                    y: minY,
+                });
+            } else {
+                reject(new Error('Could not get canvas context.'));
+            }
+        };
+        img.onerror = (err) => {
+            reject(new Error(`Failed to load SVG into image: ${err}`));
+        };
+        img.src = svgDataUrl;
+    });
+};
+
 const rasterizeMask = (
     maskPaths: PathElement[],
     baseImage: ImageElement
@@ -519,6 +640,58 @@ const App: React.FC = () => {
             return board;
         });
     }, [activeBoardId]);
+
+    const handleMergeLayers = useCallback(async (mode: 'selected' | 'visible') => {
+        const all = elementsRef.current || elements;
+        // Collect elements to merge: selected (and their descendants), else all visible
+        let idsToMerge = new Set<string>();
+        if (mode === 'selected' && selectedElementIds.length > 0) {
+            selectedElementIds.forEach(id => {
+                idsToMerge.add(id);
+                const el = all.find(e => e.id === id);
+                if (el && el.type === 'group') {
+                    getDescendants(id, all).forEach(desc => idsToMerge.add(desc.id));
+                }
+            });
+        } else {
+            all.forEach(el => {
+                if (el.isVisible !== false) {
+                    idsToMerge.add(el.id);
+                    if (el.type === 'group') {
+                        getDescendants(el.id, all).forEach(desc => idsToMerge.add(desc.id));
+                    }
+                }
+            });
+        }
+
+        const elementsToFlatten = all.filter(el => idsToMerge.has(el.id) && el.type !== 'group');
+        if (elementsToFlatten.length === 0) return;
+
+        try {
+            const flattened = await flattenElementsToImage(elementsToFlatten);
+            const newImage: ImageElement = {
+                id: generateId(),
+                type: 'image',
+                name: 'Merged Image',
+                x: flattened.x,
+                y: flattened.y,
+                width: flattened.width,
+                height: flattened.height,
+                href: flattened.href,
+                mimeType: flattened.mimeType,
+                isLocked: false,
+                isVisible: true,
+            };
+
+            commitAction(prev => {
+                const keep = prev.filter(el => !idsToMerge.has(el.id));
+                return [...keep, newImage];
+            });
+        } catch (e) {
+            console.error(e);
+            setError('合并图层失败：' + (e as Error).message);
+        }
+    }, [selectedElementIds, commitAction]);
 
     const getDescendants = useCallback((elementId: string, allElements: Element[]): Element[] => {
         const descendants: Element[] = [];
@@ -1953,6 +2126,7 @@ const App: React.FC = () => {
                 onToggleVisibility={id => handlePropertyChange(id, { isVisible: !(elements.find(el => el.id === id)?.isVisible ?? true) })}
                 onToggleLock={id => handlePropertyChange(id, { isLocked: !(elements.find(el => el.id === id)?.isLocked ?? false) })}
                 onRenameElement={(id, name) => handlePropertyChange(id, { name })}
+                onMergeLayers={handleMergeLayers}
                 onReorder={(draggedId, targetId, position) => {
                     commitAction(prev => {
                         const newElements = [...prev];
