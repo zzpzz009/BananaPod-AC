@@ -1,13 +1,17 @@
 # BananaPod 项目状态记录
 
 ## 背景和动机
-用户要求按照 `https://docs.whatai.cc/docs/openai/syfw/#api-%E7%BB%9F%E4%B8%80%E8%AF%B7%E6%B1%82%E6%A0%BC%E5%BC%8F` 教程重新调用三方API，放弃现有三方调用方式。
+用户要求：在保持现有布局不变的前提下，替换当前UI风格为 PodUI（来源：`f:\Trae\BananaPod\PodUI.html`），尤其是颜色配色与UI元素使用，确保所有按钮与功能保持可用。
+
+同时保留既有API集成重构任务背景：按照 `https://docs.whatai.cc/docs/openai/syfw/#api-%E7%BB%9F%E4%B8%80%E8%AF%B7%E6%B1%82%E6%A0%BC%E5%BC%8F` 教程统一三方API调用。
 
 ## 关键挑战和分析
 1. 原有系统使用多种API调用方式（Gemini SDK、代理、whatai），需要统一为whatai.cc的OpenAI格式API
 2. 需要重构geminiService.ts以适配新的API格式
 3. 需要更新环境配置和代理设置
 4. 确保图像生成、编辑、文本生成和视频生成功能正常工作
+5. PodUI 与现有代码广泛使用的 Tailwind 工具类存在风格差异；在不改布局的前提下，需要通过新增全局样式与有限的类名替换来实现 PodUI 的视觉一致性。
+6. 避免一次性大改：优先以 CSS 变量与通用类（如 pod-panel、pod-icon-button）覆盖视觉；逐步替换关键组件按钮与面板类名，功能逻辑保持不变。
 
 ## 高层任务拆分
 1. ✅ 分析现有三方API调用实现
@@ -17,6 +21,11 @@
 5. ✅ 更新vite.config.ts代理配置
 6. 🔄 测试新的API集成并验证图像生成和编辑功能
 7. ✅ 在图层面板新增“合并图层为图片”操作并实现逻辑
+8. 🔄 引入 PodUI 主题：新增 `src/styles/podui.css`，定义颜色变量与通用UI类
+9. 🔄 在 `index.tsx` 引入 PodUI 样式，并在 `App.tsx` 顶层容器加 `podui-theme` 类
+10. 🔄 将 PromptBar、Toolbar、CanvasSettings、BoardPanel、QuickPrompts 的按钮与面板样式替换为 PodUI 类（不改布局与逻辑）
+11. 🔄 调整 LayerPanel 列表项的选中与悬浮态为 PodUI 风格
+12. 🔄 启动开发服务并打开预览，核验颜色配色与交互可用性；若需，逐步微调类名与样式
 
 ## 项目状态看板
 - [x] 重构geminiService.ts以使用whatai.cc的统一OpenAI格式API
@@ -30,6 +39,15 @@
  - [x] 在图层面板添加并验证“合并图层”按钮显示
  - [x] 后端逻辑：将选中/可见图层栅格化并替换为单张图片
  - [x] 发布版本 v0.1.0（新增“合并图层为图片”，修复元素栅格边界计算）
+ 
+### PodUI 主题集成（新）
+- [ ] 新增 `src/styles/podui.css` 并引入到 `index.tsx`
+- [ ] 顶层容器应用 `podui-theme` 类
+- [ ] PromptBar 使用 PodUI 按钮与输入样式
+- [ ] CanvasSettings/BoardPanel 使用 PodUI 面板与按钮
+- [ ] Toolbar/QuickPrompts 使用 PodUI 按钮与菜单项
+- [ ] LayerPanel 列表项选中与悬浮态改为 PodUI 风格
+- [ ] 打开预览验证并记录问题与调试信息
 
 ## 当前状态/进度跟踪
 
@@ -45,6 +63,14 @@
 - [ ] 验证其他功能（文本生成、视频生成等）
 
 **执行者模式** - 正在测试新的API集成（长宽比修复已上线）
+
+（新增）**执行者模式 - PodUI 集成第一步**
+- 计划：以最小改动方式引入 PodUI 变量与通用类，逐步替换关键组件的按钮与面板类名；保持所有功能与交互逻辑不变。
+- 验证标准：
+  - 保持页面与面板位置、布局结构不变；
+  - 颜色体系、按钮风格、面板视觉与 `PodUI.html` 一致；
+  - 所有按钮可点击、文件上传、生成与编辑、图层操作等均正常；
+  - 打开预览无报错，必要时增加调试日志。
 
 已完成的工作：
 1. 完全重构了geminiService.ts，移除了Gemini SDK和旧的代理实现

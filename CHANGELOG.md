@@ -19,3 +19,15 @@
 
 验证说明：
 - 上传大图（如 `5000×3000`，比例 `5:3`）进行编辑或生成，控制台应打印缩放日志；服务端接收的基图不超过 `2048×2048`，输出宽高比与原图一致；有遮罩时与基图对齐
+
+## v0.3.0 (2025-11-08)
+
+- style(ui-outline): 新增 `pod-elevated-outline` 提升内圈高光亮度，塑造更清晰的描边层次
+- style(ui-gradient): 新增 `pod-bar-soft-gradient`，为 bar 添加极弱的垂直亮暗过渡
+- style(ui-inner-ring): 新增 `pod-inner-gradient-ring`，仅在内缘渲染纵向渐变细环；在 `PromptBar` 上应用并将厚度设为 `--pod-ring-width: 1px`
+- fix(toolbar-shape): 移除 `Toolbar` 的内圈伪元素，恢复原先的胶囊形状
+- chore(bg): 移除所有径向/渐变背景，顶层容器改为纯灰底色，新增 `pod-solid-gray` 并应用于 `App` 顶层
+- chore(version): 将 `package.json` 版本从 `0.2.0` 升级到 `0.3.0`
+
+验证说明：
+- 访问页面顶部与底部两个 bar：应看到更亮的内圈描边层次；`Toolbar` 保持圆角胶囊外形；`PromptBar` 的内圈细环更窄（约 1px）且有纵向渐变；整体背景为纯灰。

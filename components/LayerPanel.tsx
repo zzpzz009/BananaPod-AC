@@ -252,22 +252,21 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({ isOpen, onClose, element
     return (
         <div 
             ref={panelRef}
-            className="absolute top-4 right-4 z-20 flex flex-col w-64 h-[calc(100vh-2rem)] backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl text-white overflow-hidden"
-            style={{ backgroundColor: 'var(--ui-bg-color)' }}
+            className="absolute top-4 right-4 z-20 flex flex-col w-64 h-[calc(100vh-2rem)] pod-panel overflow-hidden"
         >
-            <div className="flex-shrink-0 flex justify-between items-center p-3 border-b border-white/10 cursor-move">
-                <h3 className="text-base font-semibold">Layers</h3>
+            <div className="flex-shrink-0 flex justify-between items-center p-3 cursor-move" style={{ borderBottom: '1px solid var(--border-color)' }}>
+                <h3 className="text-base" style={{ color: 'var(--text-heading)', fontWeight: 600 }}>Layers</h3>
                 <div className="flex items-center gap-2">
                     {onMergeLayers && (
                         <button
                             onClick={(e) => { e.stopPropagation(); onMergeLayers(selectedElementIds.length > 0 ? 'selected' : 'visible'); }}
-                            className="px-2 py-1 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-xs"
+                            className="pod-primary-button"
                             title="合并选中图层（未选中则合并可见图层）"
                         >
                             合并图层
                         </button>
                     )}
-                    <button onClick={onClose} className="text-gray-400 hover:text-white p-1 rounded-full">
+                    <button onClick={onClose} className="pod-icon-button">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                     </button>
                 </div>

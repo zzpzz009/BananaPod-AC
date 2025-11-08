@@ -80,9 +80,9 @@ const BoardItem: React.FC<{
     return (
         <div 
             onClick={onClick}
-            className={`group relative p-2 rounded-lg cursor-pointer transition-colors ${isActive ? 'bg-blue-500/30' : 'hover:bg-white/10'}`}
+            className={`group relative p-2 pod-list-item cursor-pointer ${isActive ? 'selected' : ''}`}
         >
-            <div className={`aspect-[3/2] w-full rounded-md mb-2 overflow-hidden border-2 ${isActive ? 'border-blue-500' : 'border-transparent'}`}>
+            <div className="aspect-[3/2] w-full rounded-md mb-2 overflow-hidden border-2" style={{ borderColor: isActive ? 'var(--text-accent)' : 'transparent' }}>
                 <img src={thumbnail} alt={`${board.name} thumbnail`} className="w-full h-full object-cover" />
             </div>
             <div className="flex items-center justify-between">
@@ -104,16 +104,16 @@ const BoardItem: React.FC<{
                 <div className="relative" ref={menuRef}>
                     <button 
                         onClick={(e) => { e.stopPropagation(); setMenuOpen(p => !p); }} 
-                        className="p-1 rounded-full opacity-0 group-hover:opacity-100 hover:bg-white/20 transition-opacity"
+                        className="pod-icon-button opacity-0 group-hover:opacity-100"
                     >
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="2"/><circle cx="12" cy="5" r="2"/><circle cx="12" cy="19" r="2"/></svg>
                     </button>
                     {menuOpen && (
-                        <div className="absolute right-0 bottom-full mb-1 z-10 w-32 bg-neutral-800 rounded-md shadow-lg border border-white/10 py-1 text-sm">
-                            <button onClick={() => handleMenuAction('rename')} className="block w-full text-left px-3 py-1.5 hover:bg-white/10">Rename</button>
-                            <button onClick={() => handleMenuAction('duplicate')} className="block w-full text-left px-3 py-1.5 hover:bg-white/10">Duplicate</button>
-                            <div className="my-1 border-t border-white/10"></div>
-                            <button onClick={() => handleMenuAction('delete')} className="block w-full text-left px-3 py-1.5 hover:bg-red-500/20 text-red-400">Delete</button>
+                        <div className="absolute right-0 bottom-full mb-1 z-10 w-32 pod-panel py-1 text-sm">
+                            <button onClick={() => handleMenuAction('rename')} className="pod-menu-item block w-full text-left">Rename</button>
+                            <button onClick={() => handleMenuAction('duplicate')} className="pod-menu-item block w-full text-left">Duplicate</button>
+                            <div className="my-1" style={{ borderTop: '1px solid var(--border-color)' }}></div>
+                            <button onClick={() => handleMenuAction('delete')} className="pod-menu-item block w-full text-left" style={{ color: '#ff6b6b' }}>Delete</button>
                         </div>
                     )}
                 </div>
@@ -131,16 +131,15 @@ export const BoardPanel: React.FC<BoardPanelProps> = ({
 
     return (
          <div 
-            className="absolute top-4 left-4 z-20 flex flex-col w-64 h-[calc(100vh-2rem)] backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl text-white overflow-hidden"
-            style={{ backgroundColor: 'var(--ui-bg-color)' }}
+            className="absolute top-4 left-4 z-20 flex flex-col w-64 h-[calc(100vh-2rem)] pod-panel overflow-hidden"
         >
-            <div className="flex-shrink-0 flex justify-between items-center p-3 border-b border-white/10">
-                <h3 className="text-base font-semibold">Boards</h3>
+            <div className="flex-shrink-0 flex justify-between items-center p-3" style={{ borderBottom: '1px solid var(--border-color)' }}>
+                <h3 className="text-base" style={{ color: 'var(--text-heading)', fontWeight: 600 }}>Boards</h3>
                 <div className="flex items-center space-x-1">
-                    <button onClick={onAddBoard} className="text-gray-300 hover:text-white p-1.5 rounded-full hover:bg-white/10" title="New Board">
+                    <button onClick={onAddBoard} className="pod-icon-button" title="New Board">
                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                     </button>
-                    <button onClick={onClose} className="text-gray-400 hover:text-white p-1 rounded-full">
+                    <button onClick={onClose} className="pod-icon-button">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                     </button>
                 </div>
