@@ -71,26 +71,27 @@ export const PromptBar: React.FC<PromptBarProps> = ({
     };
 
     const containerStyle: React.CSSProperties = {
-        backgroundColor: `var(--ui-bg-color)`,
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)'
     };
 
     return (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 w-full max-w-3xl px-4">
             <div 
-                style={containerStyle}
-                className="flex items-center gap-2 p-2 backdrop-blur-xl border border-white/10 rounded-full shadow-2xl"
+                style={{ ...containerStyle, ['--pod-ring-width' as any]: '1px' }}
+ className="flex items-center gap-2 p-2 pod-toolbar pod-elevated-outline pod-bar-soft-gradient pod-inner-gradient-ring"
             >
-                 <div className="flex-shrink-0 flex items-center bg-black/20 rounded-full p-1">
-                    <button onClick={() => setGenerationMode('image')} className={`px-3 py-1.5 text-sm rounded-full transition-colors ${generationMode === 'image' ? 'bg-blue-500' : 'hover:bg-white/10'}`}>{t('promptBar.imageMode')}</button>
-                    <button onClick={() => setGenerationMode('video')} className={`px-3 py-1.5 text-sm rounded-full transition-colors ${generationMode === 'video' ? 'bg-blue-500' : 'hover:bg-white/10'}`}>{t('promptBar.videoMode')}</button>
+                 <div className="flex-shrink-0 flex items-center rounded-full p-1">
+                    <button onClick={() => setGenerationMode('image')} className={`pod-chip ${generationMode === 'image' ? 'active' : ''}`}>{t('promptBar.imageMode')}</button>
+                    <button onClick={() => setGenerationMode('video')} className={`pod-chip ${generationMode === 'video' ? 'active' : ''}`}>{t('promptBar.videoMode')}</button>
                 </div>
                 
                 {generationMode === 'video' && (
-                    <div className="flex-shrink-0 flex items-center bg-black/20 rounded-full p-1 ml-1">
-                        <button onClick={() => setVideoAspectRatio('16:9')} title={t('promptBar.aspectRatioHorizontal')} className={`p-1.5 rounded-full transition-colors ${videoAspectRatio === '16:9' ? 'bg-blue-500' : 'hover:bg-white/10'}`}>
+                    <div className="flex-shrink-0 flex items-center rounded-full p-1 ml-1">
+                        <button onClick={() => setVideoAspectRatio('16:9')} title={t('promptBar.aspectRatioHorizontal')} className="pod-icon-button" style={videoAspectRatio === '16:9' ? { backgroundColor: 'var(--text-accent)', color: 'var(--bg-page)' } : {}}>
                              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="10" rx="2" ry="2"></rect></svg>
                         </button>
-                        <button onClick={() => setVideoAspectRatio('9:16')} title={t('promptBar.aspectRatioVertical')} className={`p-1.5 rounded-full transition-colors ${videoAspectRatio === '9:16' ? 'bg-blue-500' : 'hover:bg-white/10'}`}>
+                        <button onClick={() => setVideoAspectRatio('9:16')} title={t('promptBar.aspectRatioVertical')} className="pod-icon-button" style={videoAspectRatio === '9:16' ? { backgroundColor: 'var(--text-accent)', color: 'var(--bg-page)' } : {}}>
                              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="7" y="2" width="10" height="20" rx="2" ry="2"></rect></svg>
                         </button>
                     </div>
@@ -109,14 +110,14 @@ export const PromptBar: React.FC<PromptBarProps> = ({
                     onChange={(e) => setPrompt(e.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder={getPlaceholderText()}
-                    className="flex-grow bg-transparent text-white placeholder-neutral-400 focus:outline-none px-2 resize-none overflow-hidden max-h-32"
+                    className="pod-textarea flex-grow placeholder-neutral-400 px-2 overflow-hidden max-h-32"
                     disabled={isLoading}
                 />
                 {prompt.trim() && !isLoading && (
                     <button
                         onClick={handleSaveEffect}
                         title={t('myEffects.saveEffectTooltip')}
-                        className="flex-shrink-0 w-11 h-11 flex items-center justify-center text-white rounded-full hover:bg-neutral-600 transition-colors duration-200 disabled:text-neutral-400 disabled:cursor-not-allowed"
+                        className="pod-icon-button flex-shrink-0 w-11 h-11 flex items-center justify-center"
                     >
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>
                     </button>
@@ -126,8 +127,14 @@ export const PromptBar: React.FC<PromptBarProps> = ({
                     disabled={isLoading || !prompt.trim()}
                     aria-label={t('promptBar.generate')}
                     title={t('promptBar.generate')}
-                    className="flex-shrink-0 w-11 h-11 flex items-center justify-center text-white rounded-full disabled:opacity-50 disabled:cursor-not-allowed hover:brightness-110 transition-all duration-200"
-                    style={{ backgroundColor: 'var(--button-bg-color)' }}
+                    className="pod-primary-button flex-shrink-0 w-11 h-11"
+                    style={{ 
+                        borderRadius: '999px', 
+                        padding: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                    }}
                 >
                     {isLoading ? (
                         <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

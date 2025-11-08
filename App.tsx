@@ -471,7 +471,7 @@ const createNewBoard = (name: string): Board => {
         historyIndex: 0,
         panOffset: { x: 0, y: 0 },
         zoom: 1,
-        canvasBackgroundColor: '#111827',
+        canvasBackgroundColor: '#1f2937',
     };
 };
 
@@ -583,7 +583,25 @@ const App: React.FC = () => {
         const btnG = parseInt(btnHex.substring(2, 4), 16);
         const btnB = parseInt(btnHex.substring(4, 6), 16);
         root.style.setProperty('--button-bg-color', `rgba(${btnR}, ${btnG}, ${btnB}, ${buttonTheme.opacity})`);
-    }, [uiTheme, buttonTheme]);
+        // Tune animated gradient stops based on current canvas background color
+        const clamp = (n: number) => Math.max(0, Math.min(255, n));
+        const parseHex = (h: string) => {
+            const clean = h.replace('#', '');
+            return {
+                r: parseInt(clean.substring(0, 2), 16),
+                g: parseInt(clean.substring(2, 4), 16),
+                b: parseInt(clean.substring(4, 6), 16),
+            };
+        };
+        const adjust = (h: string, delta: number) => {
+            const { r, g, b } = parseHex(h);
+            return `rgb(${clamp(r + delta)}, ${clamp(g + delta)}, ${clamp(b + delta)})`;
+        };
+        // Organic but balanced contrast: slightly softer extremes, brighter mid
+        root.style.setProperty('--bg-gradient-1', adjust(canvasBackgroundColor, -30));
+        root.style.setProperty('--bg-gradient-2', adjust(canvasBackgroundColor, 50));
+        root.style.setProperty('--bg-gradient-3', adjust(canvasBackgroundColor, -65));
+    }, [uiTheme, buttonTheme, canvasBackgroundColor]);
 
     const updateActiveBoard = (updater: (board: Board) => Board) => {
         setBoards(prevBoards => prevBoards.map(board =>
@@ -2062,7 +2080,7 @@ const App: React.FC = () => {
     }, []);
 
     return (
-        <div className="w-screen h-screen flex flex-col font-sans" style={{ backgroundColor: canvasBackgroundColor }} onDragOver={handleDragOver} onDrop={handleDrop}>
+            <div className="w-screen h-screen flex flex-col font-sans podui-theme pod-solid-gray" onDragOver={handleDragOver} onDrop={handleDrop}>
             {isLoading && <Loader progressMessage={progressMessage} />}
             {error && (
                 <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 p-3 bg-red-100 border border-red-400 text-red-700 rounded-md shadow-lg flex items-center max-w-lg">

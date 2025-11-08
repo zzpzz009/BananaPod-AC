@@ -42,32 +42,30 @@ export const CanvasSettings: React.FC<CanvasSettingsProps> = ({
             onClick={onClose}
         >
             <div 
-                className="relative p-6 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl flex flex-col space-y-4 w-80 text-white"
-                style={{ backgroundColor: 'var(--ui-bg-color)' }}
+                className="relative pod-panel p-6 flex flex-col space-y-4 w-80"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex justify-between items-center">
-                    <h3 className="text-lg font-semibold">{t('settings.title')}</h3>
-                    <button onClick={onClose} className="text-gray-400 hover:text-white p-1 rounded-full">
+                    <h3 className="text-lg" style={{ color: 'var(--text-heading)', fontWeight: 600 }}>{t('settings.title')}</h3>
+                    <button onClick={onClose} className="pod-icon-button">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                     </button>
                 </div>
-                
-                <div className="border-t border-white/10 -mx-6"></div>
+                <div className="-mx-6" style={{ borderTop: '1px solid var(--border-color)' }}></div>
 
                 {/* Language Settings */}
                 <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-300">{t('settings.language')}</label>
-                    <div className="flex items-center gap-2 p-1 bg-black/20 rounded-md">
+                    <label className="text-sm" style={{ color: 'var(--text-heading)', fontWeight: 500 }}>{t('settings.language')}</label>
+                    <div className="flex items-center gap-2 p-1 rounded-md">
                         <button 
                             onClick={() => setLanguage('en')}
-                            className={`flex-1 py-1.5 text-sm rounded ${language === 'en' ? 'bg-blue-500 text-white' : 'hover:bg-white/10'}`}
+                            className={`flex-1 text-sm pod-chip ${language === 'en' ? 'active' : ''}`}
                         >
                             English
                         </button>
                         <button 
                             onClick={() => setLanguage('zho')}
-                            className={`flex-1 py-1.5 text-sm rounded ${language === 'zho' ? 'bg-blue-500 text-white' : 'hover:bg-white/10'}`}
+                            className={`flex-1 text-sm pod-chip ${language === 'zho' ? 'active' : ''}`}
                         >
                             中文
                         </button>
@@ -76,9 +74,9 @@ export const CanvasSettings: React.FC<CanvasSettingsProps> = ({
 
                 {/* UI Theme Settings */}
                 <div className="space-y-3">
-                    <h4 className="text-sm font-medium text-gray-300">{t('settings.uiTheme')}</h4>
+                    <h4 className="text-sm" style={{ color: 'var(--text-heading)', fontWeight: 500 }}>{t('settings.uiTheme')}</h4>
                     <div className="flex items-center justify-between">
-                        <label htmlFor="ui-color" className="text-sm text-gray-300">{t('settings.color')}</label>
+                        <label htmlFor="ui-color" className="text-sm" style={{ color: 'var(--text-primary)' }}>{t('settings.color')}</label>
                         <input
                             id="ui-color"
                             type="color"
@@ -88,7 +86,7 @@ export const CanvasSettings: React.FC<CanvasSettingsProps> = ({
                         />
                     </div>
                     <div className="flex items-center justify-between space-x-3">
-                        <label htmlFor="ui-opacity" className="text-sm text-gray-300">{t('settings.opacity')}</label>
+                        <label htmlFor="ui-opacity" className="text-sm" style={{ color: 'var(--text-primary)' }}>{t('settings.opacity')}</label>
                         <input
                             id="ui-opacity"
                             type="range"
@@ -99,17 +97,17 @@ export const CanvasSettings: React.FC<CanvasSettingsProps> = ({
                             onChange={(e) => setUiTheme({ ...uiTheme, opacity: parseFloat(e.target.value) })}
                             className="w-32"
                         />
-                         <span className="text-xs text-gray-400 w-8 text-right">{Math.round(uiTheme.opacity * 100)}%</span>
+                         <span className="text-xs w-8 text-right" style={{ color: 'var(--text-muted)' }}>{Math.round(uiTheme.opacity * 100)}%</span>
                     </div>
                 </div>
 
-                <div className="border-t border-white/10 -mx-6"></div>
+                <div className="-mx-6" style={{ borderTop: '1px solid var(--border-color)' }}></div>
 
                 {/* Button Theme Settings */}
                 <div className="space-y-3">
-                    <h4 className="text-sm font-medium text-gray-300">{t('settings.actionButtonsTheme')}</h4>
+                    <h4 className="text-sm" style={{ color: 'var(--text-heading)', fontWeight: 500 }}>{t('settings.actionButtonsTheme')}</h4>
                     <div className="flex items-center justify-between">
-                        <label htmlFor="button-color" className="text-sm text-gray-300">{t('settings.color')}</label>
+                        <label htmlFor="button-color" className="text-sm" style={{ color: 'var(--text-primary)' }}>{t('settings.color')}</label>
                         <input
                             id="button-color"
                             type="color"
@@ -119,7 +117,7 @@ export const CanvasSettings: React.FC<CanvasSettingsProps> = ({
                         />
                     </div>
                     <div className="flex items-center justify-between space-x-3">
-                        <label htmlFor="button-opacity" className="text-sm text-gray-300">{t('settings.opacity')}</label>
+                        <label htmlFor="button-opacity" className="text-sm" style={{ color: 'var(--text-primary)' }}>{t('settings.opacity')}</label>
                         <input
                             id="button-opacity"
                             type="range"
@@ -130,25 +128,25 @@ export const CanvasSettings: React.FC<CanvasSettingsProps> = ({
                             onChange={(e) => setButtonTheme({ ...buttonTheme, opacity: parseFloat(e.target.value) })}
                             className="w-32"
                         />
-                         <span className="text-xs text-gray-400 w-8 text-right">{Math.round(buttonTheme.opacity * 100)}%</span>
+                         <span className="text-xs w-8 text-right" style={{ color: 'var(--text-muted)' }}>{Math.round(buttonTheme.opacity * 100)}%</span>
                     </div>
                 </div>
 
-                <div className="border-t border-white/10 -mx-6"></div>
+                <div className="-mx-6" style={{ borderTop: '1px solid var(--border-color)' }}></div>
                 
                 {/* Mouse Wheel Settings */}
                 <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-300">{t('settings.mouseWheel')}</label>
-                    <div className="flex items-center gap-2 p-1 bg-black/20 rounded-md">
+                    <label className="text-sm" style={{ color: 'var(--text-heading)', fontWeight: 500 }}>{t('settings.mouseWheel')}</label>
+                    <div className="flex items-center gap-2 p-1 rounded-md">
                         <button 
                             onClick={() => setWheelAction('zoom')}
-                            className={`flex-1 py-1.5 text-sm rounded ${wheelAction === 'zoom' ? 'bg-blue-500 text-white' : 'hover:bg-white/10'}`}
+                            className={`flex-1 text-sm pod-chip ${wheelAction === 'zoom' ? 'active' : ''}`}
                         >
                             {t('settings.zoom')}
                         </button>
                         <button 
                             onClick={() => setWheelAction('pan')}
-                            className={`flex-1 py-1.5 text-sm rounded ${wheelAction === 'pan' ? 'bg-blue-500 text-white' : 'hover:bg-white/10'}`}
+                            className={`flex-1 text-sm pod-chip ${wheelAction === 'pan' ? 'active' : ''}`}
                         >
                             {t('settings.scroll')}
                         </button>
@@ -158,9 +156,9 @@ export const CanvasSettings: React.FC<CanvasSettingsProps> = ({
 
                 {/* Canvas Settings */}
                 <div className="space-y-3">
-                     <h4 className="text-sm font-medium text-gray-300">{t('settings.canvas')}</h4>
+                     <h4 className="text-sm" style={{ color: 'var(--text-heading)', fontWeight: 500 }}>{t('settings.canvas')}</h4>
                     <div className="flex items-center justify-between">
-                        <label htmlFor="bg-color" className="text-sm text-gray-300">{t('settings.backgroundColor')}</label>
+                        <label htmlFor="bg-color" className="text-sm" style={{ color: 'var(--text-primary)' }}>{t('settings.backgroundColor')}</label>
                         <input
                             id="bg-color"
                             type="color"
