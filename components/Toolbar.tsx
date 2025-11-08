@@ -202,8 +202,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 ))}
 
                 <div className="w-10" style={{ height: '1px', backgroundColor: 'var(--border-color)' }}></div>
-                <input type="color" aria-label={t('toolbar.strokeColor')} title={t('toolbar.strokeColor')} value={drawingOptions.strokeColor} onChange={(e) => setDrawingOptions({ ...drawingOptions, strokeColor: e.target.value })} className="w-8 h-8 p-0 border border-white/30 rounded-md cursor-pointer bg-transparent" />
-                <input type="range" min="1" max="50" value={drawingOptions.strokeWidth} aria-label={t('toolbar.strokeWidth')} title={t('toolbar.strokeWidth')} onChange={(e) => setDrawingOptions({ ...drawingOptions, strokeWidth: parseInt(e.target.value, 10) })} className="w-10 cursor-pointer" />
+        <input type="color" aria-label={t('toolbar.strokeColor')} title={t('toolbar.strokeColor')} value={drawingOptions.strokeColor} onChange={(e) => setDrawingOptions({ ...drawingOptions, strokeColor: e.target.value })} className="w-7 h-7 p-0 border border-white/30 rounded-full cursor-pointer bg-transparent pod-color-swatch-circle" />
+                <input type="range" min="1" max="50" value={drawingOptions.strokeWidth} aria-label={t('toolbar.strokeWidth')} title={t('toolbar.strokeWidth')} onChange={(e) => setDrawingOptions({ ...drawingOptions, strokeWidth: parseInt(e.target.value, 10) })} className="w-10 cursor-pointer pod-slider" />
                 <span className="text-sm w-6 text-center" style={{ color: 'var(--text-primary)' }}>{drawingOptions.strokeWidth}</span>
                 <div className="w-10" style={{ height: '1px', backgroundColor: 'var(--border-color)' }}></div>
                 <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />

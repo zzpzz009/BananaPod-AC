@@ -487,7 +487,7 @@ const App: React.FC = () => {
     const { elements, history, historyIndex, panOffset, zoom, canvasBackgroundColor } = activeBoard;
 
     const [activeTool, setActiveTool] = useState<Tool>('select');
-    const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FFFFFF', strokeWidth: 5 });
+const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', strokeWidth: 5 });
     const [selectedElementIds, setSelectedElementIds] = useState<string[]>([]);
     const [selectionBox, setSelectionBox] = useState<Rect | null>(null);
     const [prompt, setPrompt] = useState('');
