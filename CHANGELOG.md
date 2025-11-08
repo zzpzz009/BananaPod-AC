@@ -22,12 +22,11 @@
 
 ## v0.3.0 (2025-11-08)
 
-- style(ui-outline): 新增 `pod-elevated-outline` 提升内圈高光亮度，塑造更清晰的描边层次
-- style(ui-gradient): 新增 `pod-bar-soft-gradient`，为 bar 添加极弱的垂直亮暗过渡
-- style(ui-inner-ring): 新增 `pod-inner-gradient-ring`，仅在内缘渲染纵向渐变细环；在 `PromptBar` 上应用并将厚度设为 `--pod-ring-width: 1px`
-- fix(toolbar-shape): 移除 `Toolbar` 的内圈伪元素，恢复原先的胶囊形状
-- chore(bg): 移除所有径向/渐变背景，顶层容器改为纯灰底色，新增 `pod-solid-gray` 并应用于 `App` 顶层
-- chore(version): 将 `package.json` 版本从 `0.2.0` 升级到 `0.3.0`
+- style(ui): 更新UI风格，换为黄灰配色，并优化UI细节，更精致细腻
+## v0.3.1
 
-验证说明：
-- 访问页面顶部与底部两个 bar：应看到更亮的内圈描边层次；`Toolbar` 保持圆角胶囊外形；`PromptBar` 的内圈细环更窄（约 1px）且有纵向渐变；整体背景为纯灰。
+- 默认描边颜色改为红色（RGB 255,0,0 / `#FF0000`），新创建的线条、箭头、形状使用该默认色。
+- 工具栏颜色选择器改为圆形，并统一为紧凑尺寸 `w-7 h-7`，视觉更一致。
+- 新增 `.pod-color-swatch-circle` 样式，移除浏览器默认边框并强制圆形显示（WebKit/Gecko）。
+- 统一原生 `range` 滑杆强调色使用主题强调色（`accent-color: var(--text-accent)`），配合 PodUI 主题为黄色。
+- 预览检查通过，终端无新增错误。

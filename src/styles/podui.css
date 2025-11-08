@@ -158,6 +158,27 @@
   border: 1px solid var(--text-accent);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
+
+/* Yellow-accent slider: unify native range control color */
+.pod-slider {
+  accent-color: var(--text-accent);
+}
+
+/* 圆形颜色选择器色块（适用于 input[type="color"]） */
+.pod-color-swatch-circle {
+  border-radius: 9999px;
+}
+.pod-color-swatch-circle::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+.pod-color-swatch-circle::-webkit-color-swatch {
+  border: none;
+  border-radius: 50%;
+}
+.pod-color-swatch-circle::-moz-color-swatch {
+  border: none;
+  border-radius: 50%;
+}
 .pod-primary-button:hover {
   background-color: #e6c667;
   border-color: #e6c667;
