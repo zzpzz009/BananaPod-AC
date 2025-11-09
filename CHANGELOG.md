@@ -30,3 +30,14 @@
 - 新增 `.pod-color-swatch-circle` 样式，移除浏览器默认边框并强制圆形显示（WebKit/Gecko）。
 - 统一原生 `range` 滑杆强调色使用主题强调色（`accent-color: var(--text-accent)`），配合 PodUI 主题为黄色。
 - 预览检查通过，终端无新增错误。
+
+## v0.4.0 (2025-11-09)
+
+- feat(models): 图像生成与编辑模型统一切换为 `nano-banana`，生成走 `/v1/images/generations`（JSON），编辑走 `/v1/images/edits`（FormData）
+- feat(images): 生成接口支持多图参考数组 `image[]`；比例以“图1”计算并传入 `aspect_ratio`
+- feat(size-check): 生成接口移除 `size` 传参以符合规范；客户端保留严格尺寸校验与“固定尺寸信封适配”保障输出与首图一致
+- chore(logs): 控制台日志统一标注 `(Nano-banana)` 便于调试与核验请求/响应
+- chore(version): `package.json` 从 `0.3.1` 升级到 `0.4.0` 并打标签
+
+验证说明：
+- 多选图片进行“生成编辑”，查看控制台 `[generations]` 与 `[editImage]` 日志，确认模型与端点、`aspect_ratio`、`image[]` 等参数正确；输出尺寸/比例与“图1”一致（严格模式下不一致将报错）
