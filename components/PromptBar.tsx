@@ -1,5 +1,6 @@
 import React from 'react';
 import { QuickPrompts } from './QuickPrompts';
+// BananaSidebar moved to App-level overlay; keep PromptBar focused on input controls
 import type { UserEffect, GenerationMode } from '../types';
 
 interface PromptBarProps {
@@ -17,6 +18,7 @@ interface PromptBarProps {
     setGenerationMode: (mode: GenerationMode) => void;
     videoAspectRatio: '16:9' | '9:16';
     setVideoAspectRatio: (ratio: '16:9' | '9:16') => void;
+    containerRef?: React.Ref<HTMLDivElement>;
 }
 
 export const PromptBar: React.FC<PromptBarProps> = ({
@@ -34,6 +36,7 @@ export const PromptBar: React.FC<PromptBarProps> = ({
     setGenerationMode,
     videoAspectRatio,
     setVideoAspectRatio,
+    containerRef,
 }) => {
     const textareaRef = React.useRef<HTMLTextAreaElement>(null);
 
@@ -76,11 +79,12 @@ export const PromptBar: React.FC<PromptBarProps> = ({
     };
 
     return (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 w-full max-w-3xl px-4">
+        <div ref={containerRef} className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 w-full max-w-3xl px-4">
             <div 
                 style={{ ...containerStyle, ['--pod-ring-width' as any]: '1px' }}
  className="flex items-center gap-2 p-2 pod-toolbar pod-elevated-outline pod-bar-soft-gradient pod-inner-gradient-ring"
             >
+                {/* Left area previously hosting BananaSidebar; now empty to keep layout tight */}
                  <div className="flex-shrink-0 flex items-center rounded-full p-1">
                     <button onClick={() => setGenerationMode('image')} className={`pod-chip ${generationMode === 'image' ? 'active' : ''}`}>{t('promptBar.imageMode')}</button>
                     <button onClick={() => setGenerationMode('video')} className={`pod-chip ${generationMode === 'video' ? 'active' : ''}`}>{t('promptBar.videoMode')}</button>

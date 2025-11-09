@@ -7,6 +7,7 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { Toolbar } from './components/Toolbar';
 import { PromptBar } from './components/PromptBar';
+import { BananaSidebar } from './components/BananaSidebar';
 import { Loader } from './components/Loader';
 import { CanvasSettings } from './components/CanvasSettings';
 import { LayerPanel } from './components/LayerPanel';
@@ -532,7 +533,34 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
     const editingTextareaRef = useRef<HTMLTextAreaElement>(null);
     const previousToolRef = useRef<Tool>('select');
     const spacebarDownTime = useRef<number | null>(null);
+    const promptBarRef = useRef<HTMLDivElement>(null);
     elementsRef.current = elements;
+
+    const [bananaLeftOffset, setBananaLeftOffset] = useState<number>(420);
+    const [bananaTopPx, setBananaTopPx] = useState<number>(0);
+
+    useEffect(() => {
+        const updateBananaPosition = () => {
+            const el = promptBarRef.current;
+            if (!el) return;
+            const rect = el.getBoundingClientRect();
+            const width = rect.width;
+            const spacing = 24; // gap between PromptBar left edge and banana button
+            setBananaLeftOffset(width / 2 + spacing);
+  setBananaTopPx(rect.top + rect.height / 2 - 20); // align vertical center (button ~40px height)
+        };
+        updateBananaPosition();
+        let ro: ResizeObserver | null = null;
+        if (typeof ResizeObserver !== 'undefined' && promptBarRef.current) {
+            ro = new ResizeObserver(() => updateBananaPosition());
+            ro.observe(promptBarRef.current);
+        }
+        window.addEventListener('resize', updateBananaPosition);
+        return () => {
+            window.removeEventListener('resize', updateBananaPosition);
+            if (ro) ro.disconnect();
+        };
+    }, []);
 
     useEffect(() => {
         setSelectedElementIds([]);
@@ -1472,9 +1500,19 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
             canvas.height = cropBox.height;
             const ctx = canvas.getContext('2d');
             if (!ctx) { setError("Failed to create canvas context for cropping."); handleCancelCrop(); return; }
-            const sx = cropBox.x - elementToCrop.x;
-            const sy = cropBox.y - elementToCrop.y;
-            ctx.drawImage(img, sx, sy, cropBox.width, cropBox.height, 0, 0, cropBox.width, cropBox.height);
+            // 映射到原始图像像素坐标，避免因缩放导致错误裁剪
+            const scaleX = img.width / elementToCrop.width;
+            const scaleY = img.height / elementToCrop.height;
+            let sx = (cropBox.x - elementToCrop.x) * scaleX;
+            let sy = (cropBox.y - elementToCrop.y) * scaleY;
+            let sWidth = cropBox.width * scaleX;
+            let sHeight = cropBox.height * scaleY;
+            // 越界保护
+            if (sx < 0) { sWidth += sx; sx = 0; }
+            if (sy < 0) { sHeight += sy; sy = 0; }
+            if (sx + sWidth > img.width) { sWidth = img.width - sx; }
+            if (sy + sHeight > img.height) { sHeight = img.height - sy; }
+            ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, cropBox.width, cropBox.height);
             const newHref = canvas.toDataURL(elementToCrop.mimeType);
 
             commitAction(prev => prev.map(el => {
@@ -2566,6 +2604,7 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
                     );
                 })()}
             </div>
+            {/* Measure PromptBar to position BananaSidebar responsively */}
             {!croppingState && <PromptBar 
                 t={t}
                 prompt={prompt} 
@@ -2581,7 +2620,22 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
                 setGenerationMode={setGenerationMode}
                 videoAspectRatio={videoAspectRatio}
                 setVideoAspectRatio={setVideoAspectRatio}
+                containerRef={promptBarRef}
             />}
+            {/* BananaSidebar: follows PromptBar width, aligns vertically with its center */}
+            {!croppingState && (
+                <div
+                    className="z-40"
+                    style={{ position: 'fixed', left: '50%', transform: `translateX(calc(-50% - ${bananaLeftOffset}px))`, top: `${bananaTopPx}px` }}
+                >
+                    <BananaSidebar 
+                        t={t}
+                        setPrompt={setPrompt}
+                        onGenerate={handleGenerate}
+                        disabled={isLoading}
+                    />
+                </div>
+            )}
         </div>
     );
 };

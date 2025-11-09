@@ -1213,9 +1213,19 @@ const App: React.FC = () => {
             canvas.height = cropBox.height;
             const ctx = canvas.getContext('2d');
             if (!ctx) { setError("Failed to create canvas context for cropping."); handleCancelCrop(); return; }
-            const sx = cropBox.x - elementToCrop.x;
-            const sy = cropBox.y - elementToCrop.y;
-            ctx.drawImage(img, sx, sy, cropBox.width, cropBox.height, 0, 0, cropBox.width, cropBox.height);
+            // 将画布坐标系的裁剪框映射到原始图像的像素坐标
+            const scaleX = img.width / elementToCrop.width;
+            const scaleY = img.height / elementToCrop.height;
+            let sx = (cropBox.x - elementToCrop.x) * scaleX;
+            let sy = (cropBox.y - elementToCrop.y) * scaleY;
+            let sWidth = cropBox.width * scaleX;
+            let sHeight = cropBox.height * scaleY;
+            // 越界保护，避免源区域超出原图
+            if (sx < 0) { sWidth += sx; sx = 0; }
+            if (sy < 0) { sHeight += sy; sy = 0; }
+            if (sx + sWidth > img.width) { sWidth = img.width - sx; }
+            if (sy + sHeight > img.height) { sHeight = img.height - sy; }
+            ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, cropBox.width, cropBox.height);
             const newHref = canvas.toDataURL(elementToCrop.mimeType);
 
             commitAction(prev => prev.map(el => {
