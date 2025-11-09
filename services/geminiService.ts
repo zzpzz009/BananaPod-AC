@@ -4,10 +4,14 @@ import { withRetry } from "@/utils/retry";
 const WHATAI_BASE_URL = process.env.WHATAI_BASE_URL || 'https://api.whatai.cc';
 const WHATAI_API_KEY = process.env.WHATAI_API_KEY;
 const WHATAI_TEXT_MODEL = process.env.WHATAI_TEXT_MODEL || 'gemini-2.0-flash-exp';
-const WHATAI_IMAGE_GENERATION_MODEL = process.env.WHATAI_IMAGE_GENERATION_MODEL || 'qwen-image';
-const WHATAI_IMAGE_EDIT_MODEL = process.env.WHATAI_IMAGE_EDIT_MODEL || 'gemini-2.5-flash-image';
+// 图像生成切换至 Nano-banana（参考 f:\Trae\BananaPod\nanobanna.html）
+const WHATAI_IMAGE_GENERATION_MODEL = process.env.WHATAI_IMAGE_GENERATION_MODEL || 'nano-banana';
+// 图像编辑也切换至 Nano-banana
+const WHATAI_IMAGE_EDIT_MODEL = process.env.WHATAI_IMAGE_EDIT_MODEL || 'nano-banana';
 const WHATAI_VIDEO_MODEL = process.env.WHATAI_VIDEO_MODEL || 'vidu-1';
 const PROXY_VIA_VITE = (process.env.PROXY_VIA_VITE || 'true') === 'true';
+// 严格尺寸校验（true 时若服务端返回尺寸与首图不一致则报错）
+const WHATAI_STRICT_SIZE = (process.env.WHATAI_STRICT_SIZE || 'false') === 'true';
 
 const IS_BROWSER = typeof window !== 'undefined';
 
@@ -186,6 +190,48 @@ async function letterboxToAspectRatio(base64: string, mimeType: string, targetAs
   return out;
 }
 
+// 将返回的图片按目标固定尺寸进行信封式适配（保持比例，透明边框补齐）
+async function letterboxToFixedSize(base64: string, mimeType: string, targetW: number, targetH: number): Promise<string> {
+  if (!IS_BROWSER) return base64;
+  if (!targetW || !targetH) return base64;
+  const url = `data:${mimeType};base64,${base64}`;
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const i = new Image();
+    i.onload = () => resolve(i);
+    i.onerror = reject;
+    i.src = url;
+  });
+
+  const cw = img.naturalWidth || img.width;
+  const ch = img.naturalHeight || img.height;
+  if (!cw || !ch) return base64;
+
+  const currentRatio = cw / ch;
+  const targetRatio = targetW / targetH;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = targetW;
+  canvas.height = targetH;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return base64;
+
+  ctx.clearRect(0, 0, targetW, targetH);
+
+  // 计算缩放后图像尺寸以在信封内居中
+  let drawW = targetW;
+  let drawH = Math.round(drawW / currentRatio);
+  if (drawH > targetH) {
+    drawH = targetH;
+    drawW = Math.round(drawH * currentRatio);
+  }
+  const dx = Math.round((targetW - drawW) / 2);
+  const dy = Math.round((targetH - drawH) / 2);
+  ctx.drawImage(img, dx, dy, drawW, drawH);
+
+  const out = canvas.toDataURL(mimeType).split(',')[1] || base64;
+  return out;
+}
+
 // whatai.cc 统一 API 调用函数
 async function whataiFetch(path: string, init: RequestInit): Promise<Response> {
   const useDevProxy = IS_BROWSER && PROXY_VIA_VITE;
@@ -255,6 +301,8 @@ async function whataiImageEdit(body: any): Promise<any> {
   formData.append('prompt', body.prompt);
   if (body.aspect_ratio) formData.append('aspect_ratio', body.aspect_ratio);
   if (body.response_format) formData.append('response_format', body.response_format);
+  // 可选固定尺寸（如提供）
+  if (body.size) formData.append('size', body.size);
   
   // 将 base64 图像转换为 Blob 并添加到 FormData
   if (body.image) {
@@ -303,18 +351,18 @@ export async function generateImageFromText(prompt: string): Promise<{
 
   try {
     const body = {
-      model: WHATAI_IMAGE_GENERATION_MODEL,
+      model: WHATAI_IMAGE_GENERATION_MODEL, // nano-banana 默认
       prompt: prompt,
       aspect_ratio: "1:1",
-      response_format: "url"
+      response_format: "url" // 按 nano-banana 规范，支持 url 或 b64_json
     };
 
-    console.log('发送给图像生成API的请求体:', JSON.stringify(body, null, 2));
-    console.log('使用的模型:', WHATAI_IMAGE_GENERATION_MODEL);
-    console.log('API端点: /v1/images/generations');
+    console.log('[generations] 请求体:', JSON.stringify(body, null, 2));
+    console.log('[generations] 使用模型:', WHATAI_IMAGE_GENERATION_MODEL);
+    console.log('[generations] 端点: /v1/images/generations (Nano-banana)');
     
     const result = await whataiImageGeneration(body);
-    console.log('图像生成API完整响应:', JSON.stringify(result, null, 2));
+    console.log('[generations] 完整响应:', JSON.stringify(result, null, 2));
     
     // 图像生成模型可能返回base64或URL，需要检查响应格式
     if (result.data && result.data[0]) {
@@ -342,7 +390,7 @@ export async function generateImageFromText(prompt: string): Promise<{
               resolve({
                 newImageBase64: base64,
                 newImageMimeType: "image/png",
-                textResponse: `使用 ${WHATAI_IMAGE_GENERATION_MODEL} 模型成功生成图像`
+                textResponse: `使用 ${WHATAI_IMAGE_GENERATION_MODEL} 模型成功生成图像（Nano-banana)`
               });
             };
             reader.readAsDataURL(imageBlob);
@@ -401,47 +449,66 @@ export async function editImage(
   }
 
   try {
-    // 仅使用首张图作为编辑的基底
-    const base = images[0];
-    const imageBase64 = base.href.includes('base64,')
-      ? base.href.split('base64,')[1]
-      : base.href;
+    // 处理所有输入图片（无遮罩时用于多图组合；有遮罩时只取首图作为基底）
+    const first = images[0];
+    const firstBase64 = first.href.includes('base64,')
+      ? first.href.split('base64,')[1]
+      : first.href;
 
-    // 计算原图长宽比（用于保持编辑输出比例一致）
-    const aspectRatioFromImage = await computeAspectRatioFromBase64(imageBase64, base.mimeType);
+    // 计算首图长宽比（用于保持编辑输出比例一致）
+    const aspectRatioFromImage = await computeAspectRatioFromBase64(firstBase64, first.mimeType);
 
-    // 若输入图片超过 2048×2048，则先按比例缩小到限制内
-    let preparedImageBase64 = imageBase64;
+    // 逐张图片按最大 2048 边进行预处理缩放（无遮罩路径会全部传入）
+    const preparedImagesBase64: string[] = [];
     let preparedMaskBase64 = mask ? (mask.href.includes('base64,') ? mask.href.split('base64,')[1] : mask.href) : undefined;
-    const resized = await resizeBase64ToMax(imageBase64, base.mimeType, 2048, 2048);
-    if (resized && resized.scale < 1) {
-      preparedImageBase64 = resized.base64;
-      if (preparedMaskBase64) {
-        const maskScaled = await scaleBase64ByFactor(preparedMaskBase64, mask?.mimeType, resized.scale);
-        preparedMaskBase64 = maskScaled?.base64 ?? preparedMaskBase64;
+    let firstResizeScale: number | null = null;
+    for (let i = 0; i < images.length; i++) {
+      const img = images[i];
+      const imgBase64 = img.href.includes('base64,') ? img.href.split('base64,')[1] : img.href;
+      let prepared = imgBase64;
+      const resizedImg = await resizeBase64ToMax(imgBase64, img.mimeType, 2048, 2048);
+      if (resizedImg && resizedImg.scale < 1) {
+        prepared = resizedImg.base64;
+        // 记录首图的缩放比例用于遮罩同步缩放
+        if (i === 0) firstResizeScale = resizedImg.scale;
+        console.debug('[editImage] 输入图过大，已按比例缩放', {
+          index: i,
+          original: await getBase64ImageSize(imgBase64, img.mimeType),
+          resized: { width: resizedImg.width, height: resizedImg.height },
+          scale: resizedImg.scale,
+        });
       }
-      console.debug('[editImage] 输入图过大，已按比例缩放', {
-        original: await getBase64ImageSize(imageBase64, base.mimeType),
-        resized: { width: resized.width, height: resized.height },
-        scale: resized.scale,
-      });
+      preparedImagesBase64.push(prepared);
     }
 
-    // 有遮罩 → 使用编辑接口；无遮罩 → 使用生成接口（qwen-image 支持 aspect_ratio 更稳定）
+    // 如果有遮罩，需与首图缩放比例保持一致
+    if (preparedMaskBase64 && firstResizeScale && firstResizeScale < 1) {
+      const maskScaled = await scaleBase64ByFactor(preparedMaskBase64, mask?.mimeType, firstResizeScale);
+      preparedMaskBase64 = maskScaled?.base64 ?? preparedMaskBase64;
+    }
+
+    // 计算目标尺寸为首图（预处理后）的实际像素尺寸
+    const baseSize = await getBase64ImageSize(preparedImagesBase64[0], first.mimeType);
+    const targetW = baseSize?.width;
+    const targetH = baseSize?.height;
+
+    // 有遮罩 → 使用编辑接口；无遮罩 → 使用生成接口（Nano-banana 支持 aspect_ratio）
     if (mask) {
       const body: any = {
         model: WHATAI_IMAGE_EDIT_MODEL,
         prompt: prompt,
         ...(aspectRatioFromImage ? { aspect_ratio: aspectRatioFromImage } : {}),
         response_format: "url",
-        image: preparedImageBase64,
+        image: preparedImagesBase64[0],
         mask: preparedMaskBase64
       };
+      if (targetW && targetH) body.size = `${targetW}x${targetH}`;
 
-      console.log('[editImage] 路径: edits（含遮罩） /v1/images/edits', {
+      console.log('[editImage] 路径: edits（含遮罩，Nano-banana） /v1/images/edits', {
         model: WHATAI_IMAGE_EDIT_MODEL,
         aspect_ratio: aspectRatioFromImage || '未提供',
-        response_format: body.response_format
+        response_format: body.response_format,
+        size: body.size || '未提供'
       });
 
       var result = await whataiImageEdit(body);
@@ -451,13 +518,16 @@ export async function editImage(
         prompt: prompt,
         ...(aspectRatioFromImage ? { aspect_ratio: aspectRatioFromImage } : {}),
         response_format: "url",
-        image: [preparedImageBase64]
+        // 传入所有预处理后的图片，以启用多图参考/组合（参考 nano-banana image 数组）
+        image: preparedImagesBase64
       };
+      // nano-banana 规范未声明 size 字段，这里不再传递 size；尺寸一致性由客户端严格模式信封适配保证
 
-      console.log('[editImage] 路径: generations（无遮罩） /v1/images/generations', {
+      console.log('[editImage] 路径: generations（无遮罩，Nano-banana） /v1/images/generations', {
         model: WHATAI_IMAGE_GENERATION_MODEL,
         aspect_ratio: aspectRatioFromImage || '未提供',
-        response_format: body.response_format
+        response_format: body.response_format,
+        image_count: preparedImagesBase64.length
       });
 
       var result = await whataiImageGeneration(body);
@@ -468,8 +538,26 @@ export async function editImage(
       if (imageData.b64_json) {
         let b64 = imageData.b64_json;
         const mime = "image/png";
-        // 若服务端未按原始比例输出，则进行信封适配为原始比例
-        if (aspectRatioFromImage) {
+        // 检查尺寸一致性（首图预处理后尺寸）
+        if (targetW && targetH) {
+          const outSize = await getBase64ImageSize(b64, mime);
+          const sizeMatch = outSize && outSize.width === targetW && outSize.height === targetH;
+          if (!sizeMatch) {
+            if (WHATAI_STRICT_SIZE) {
+              console.error('[editImage] 服务端输出尺寸与首图不一致（严格模式）', { targetW, targetH, actual: outSize });
+              return {
+                newImageBase64: null,
+                newImageMimeType: null,
+                textResponse: `图像编辑失败：服务端未按尺寸输出（期望 ${targetW}x${targetH}）`
+              };
+            } else {
+              // 非严格模式：进行固定尺寸信封适配
+              b64 = await letterboxToFixedSize(b64, mime, targetW, targetH);
+              console.log('[editImage] 服务端输出尺寸不一致，已用固定尺寸信封适配到目标尺寸:', { targetW, targetH, actual: outSize });
+            }
+          }
+        } else if (aspectRatioFromImage) {
+          // 若无法获取目标尺寸，则至少保证比例一致
           const outAr = await computeAspectRatioFromBase64(b64, mime);
           if (outAr && outAr !== aspectRatioFromImage) {
             b64 = await letterboxToAspectRatio(b64, mime, aspectRatioFromImage);
@@ -479,7 +567,7 @@ export async function editImage(
         return {
           newImageBase64: b64,
           newImageMimeType: mime,
-          textResponse: `使用 ${WHATAI_IMAGE_EDIT_MODEL} 模型成功编辑图像`
+          textResponse: `使用 ${WHATAI_IMAGE_EDIT_MODEL} 模型成功编辑图像（Nano-banana)`
         };
       }
       if (imageData.url) {
@@ -491,7 +579,25 @@ export async function editImage(
             reader.onload = async () => {
               let base64 = (reader.result as string).split(',')[1];
               const mime = "image/png";
-              if (aspectRatioFromImage) {
+              // 尺寸一致性检查（URL 输出）
+              if (targetW && targetH) {
+                const outSize = await getBase64ImageSize(base64, mime);
+                const sizeMatch = outSize && outSize.width === targetW && outSize.height === targetH;
+                if (!sizeMatch) {
+                  if (WHATAI_STRICT_SIZE) {
+                    console.error('[editImage] URL输出尺寸与首图不一致（严格模式）', { targetW, targetH, actual: outSize });
+                    resolve({
+                      newImageBase64: null,
+                      newImageMimeType: null,
+                      textResponse: `图像编辑失败：服务端未按尺寸输出（期望 ${targetW}x${targetH}）`
+                    });
+                    return;
+                  } else {
+                    base64 = await letterboxToFixedSize(base64, mime, targetW, targetH);
+                    console.log('[editImage] URL输出尺寸不一致，已用固定尺寸信封适配到目标尺寸:', { targetW, targetH, actual: outSize });
+                  }
+                }
+              } else if (aspectRatioFromImage) {
                 const outAr = await computeAspectRatioFromBase64(base64, mime);
                 if (outAr && outAr !== aspectRatioFromImage) {
                   base64 = await letterboxToAspectRatio(base64, mime, aspectRatioFromImage);
@@ -501,7 +607,7 @@ export async function editImage(
               resolve({
                 newImageBase64: base64,
                 newImageMimeType: mime,
-                textResponse: `使用 ${WHATAI_IMAGE_EDIT_MODEL} 模型成功编辑图像`
+                textResponse: `使用 ${WHATAI_IMAGE_EDIT_MODEL} 模型成功编辑图像（Nano-banana)`
               });
             };
             reader.readAsDataURL(imageBlob);
