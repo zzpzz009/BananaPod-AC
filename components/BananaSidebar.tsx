@@ -5,6 +5,8 @@ interface BananaSidebarProps {
   setPrompt: (prompt: string) => void;
   onGenerate: () => void;
   disabled?: boolean;
+  /** 从 PromptBar 中心到香蕉按钮的水平偏移（px），用于让面板按 PromptBar 轴居中 */
+  promptBarOffsetPx?: number;
 }
 
 // Use external SVG as icon logo
@@ -34,10 +36,81 @@ const makeSvgDataUrl = (label: string) => {
   return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
 };
 
-export const BananaSidebar: React.FC<BananaSidebarProps> = ({ t, setPrompt, onGenerate, disabled = false }) => {
+// Photo URLs for weather cards (optimized Unsplash sizes)
+const PHOTO_URLS: Record<string, string> = {
+  // Chinese
+  '晴天': 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=360&q=80',
+  '清晨': 'https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=360&q=80',
+  '黄昏': 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=360&q=80',
+  '夜景': 'https://images.unsplash.com/photo-1465101046530-73398c7f28ca?auto=format&fit=crop&w=360&q=80',
+  '阴天': 'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=360&q=80',
+  '雨天': 'https://images.unsplash.com/photo-1501594907352-04cda38ebc29?auto=format&fit=crop&w=360&q=80',
+  '雪景': 'https://images.unsplash.com/photo-1482192596544-9eb780fc7f66?auto=format&fit=crop&w=360&q=80',
+  // English
+  'Sunny': 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=360&q=80',
+  'Morning': 'https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=360&q=80',
+  'Dusk': 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=360&q=80',
+  'Night Scene': 'https://images.unsplash.com/photo-1465101046530-73398c7f28ca?auto=format&fit=crop&w=360&q=80',
+  'Overcast': 'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=360&q=80',
+  'Rainy': 'https://images.unsplash.com/photo-1501594907352-04cda38ebc29?auto=format&fit=crop&w=360&q=80',
+  'Snowy': 'https://images.unsplash.com/photo-1482192596544-9eb780fc7f66?auto=format&fit=crop&w=360&q=80',
+};
+
+// Normalize label for robust matching (trim, lowercase, remove spaces)
+const normalize = (s: string) => s.trim().toLowerCase().replace(/\s+/g, '');
+
+// Try resolve photo url by normalized comparison across keys
+const resolvePhotoUrl = (label: string): string | null => {
+  const n = normalize(label);
+  for (const key in PHOTO_URLS) {
+    if (normalize(key) === n) return PHOTO_URLS[key];
+  }
+  return null;
+};
+
+// Map localized card names to local weather icon assets
+const ICON_MAP: Record<string, string> = {
+  // Chinese
+  '晴天': '/weather/sun.svg',
+  '清晨': '/weather/sunrise.svg',
+  '黄昏': '/weather/sunset.svg',
+  '夜景': '/weather/night_city.svg',
+  '阴天': '/weather/cloud.svg',
+  '雨天': '/weather/rain.svg',
+  '雪景': '/weather/snow.svg',
+  // English
+  'Sunny': '/weather/sun.svg',
+  'Morning': '/weather/sunrise.svg',
+  'Dusk': '/weather/sunset.svg',
+  'Night Scene': '/weather/night_city.svg',
+  'Overcast': '/weather/cloud.svg',
+  'Rainy': '/weather/rain.svg',
+  'Snowy': '/weather/snow.svg',
+};
+
+const resolveIconUrl = (label: string): string | null => {
+  const n = normalize(label);
+  for (const key in ICON_MAP) {
+    if (normalize(key) === n) return ICON_MAP[key];
+  }
+  return null;
+};
+
+const getCardImageSrc = (label: string) => {
+  const photo = resolvePhotoUrl(label);
+  if (photo) return photo;
+  const icon = resolveIconUrl(label);
+  if (icon) return icon;
+  return makeSvgDataUrl(label);
+};
+
+// Local icon fallback mapping (runtime image error handler will use this)
+const getLocalIconSrc = (label: string): string | null => resolveIconUrl(label);
+
+export const BananaSidebar: React.FC<BananaSidebarProps> = ({ t, setPrompt, onGenerate, disabled = false, promptBarOffsetPx = 0 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const builtInPrompts = t('quickPrompts') as { name: string; value: string }[];
+  const builtInPrompts = t('bananaCards') as { name: string; value: string }[];
 
   useEffect(() => {
     const onClickOutside = (e: MouseEvent) => {
@@ -167,18 +240,70 @@ export const BananaSidebar: React.FC<BananaSidebarProps> = ({ t, setPrompt, onGe
         }
       `}</style>
       {isOpen && (
-        <div className="absolute bottom-full left-0 mb-3 w-[22rem] max-h-96 overflow-y-auto pod-panel p-2">
-          <div className="grid grid-cols-3 gap-2">
-            {(builtInPrompts || []).slice(0, 12).map((item, idx) => (
+        <div
+          className="absolute bottom-full left-1/2 mb-6 w-[64rem] max-w-[90vw] pod-panel pod-panel-transparent pod-panel-rounded-xl p-3 overflow-x-auto overflow-y-hidden pod-scrollbar-x"
+          style={{ transform: `translateX(calc(-50% + ${promptBarOffsetPx}px))` }}
+        >
+          <div className="flex flex-row gap-2 justify-center">
+            {(builtInPrompts || []).slice(0, 7).map((item, idx) => (
               <button
                 key={idx}
                 onClick={() => handleSelect(item.value)}
                 title={item.name}
-                className="group relative w-full aspect-[3/2] rounded-md overflow-hidden pod-list-item"
+                className="group relative cursor-pointer transform transition-all duration-500 hover:scale-105 hover:-translate-y-1 flex-shrink-0 w-32"
                 style={{ padding: 0 }}
               >
-                <img src={makeSvgDataUrl(item.name)} alt={item.name} className="w-full h-full object-cover" />
-                <span className="absolute left-1 top-1 text-[10px] px-1 py-[2px] rounded" style={{ backgroundColor: 'rgba(0,0,0,0.4)', color: '#fff' }}>{item.name}</span>
+                <div className="bg-white/10 backdrop-blur-xl rounded-3xl overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-500 hover:bg-white/15">
+                  <div className="aspect-square relative overflow-hidden">
+                    <img
+                      src={getCardImageSrc(item.name)}
+                      alt={item.name}
+                      loading="lazy"
+                      decoding="async"
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                      onError={(e) => {
+                        const fb = getLocalIconSrc(item.name);
+                        e.currentTarget.src = fb ?? makeSvgDataUrl(item.name);
+                      }}
+                    />
+                    {/* bottom gradient overlay for readability */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent"></div>
+                    {/* centered title overlay */}
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <h3
+                        className="font-semibold text-white text-base leading-tight drop-shadow-md text-center px-2"
+                        style={{
+                          fontFamily:
+                            "'阿里妈妈数黑体 Bold', 'Alimama ShuHeiTi', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Heiti SC', Arial, sans-serif",
+                          fontSize: '1.2em',
+                          textShadow:
+                            '0 2px 6px rgba(0,0,0,0.45), 0 1px 2px rgba(0,0,0,0.35)',
+                          letterSpacing: '0.06em'
+                        }}
+                        title={item.name}
+                      >
+                        {item.name}
+                      </h3>
+                    </div>
+                    {/* content area */}
+                    <div className="absolute bottom-0 left-0 right-0 p-2">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex gap-1">
+                          <span className="w-1.5 h-1.5 bg-white/40 rounded-full"/>
+                          <span className="w-1.5 h-1.5 bg-white/30 rounded-full"/>
+                          <span className="w-1.5 h-1.5 bg-white/20 rounded-full"/>
+                          <span className="w-1.5 h-1.5 bg-white/10 rounded-full"/>
+                          <span className="w-1.5 h-1.5 bg-white/5 rounded-full"/>
+                        </div>
+                        <span className="text-[10px] text-white/80 bg-white/15 backdrop-blur-xl px-1.5 py-0.5 rounded-lg">
+                          {t('bananaSidebar.presetLabel')}
+                        </span>
+                      </div>
+                      {/* 移除CTA按钮：卡片底部不再显示“使用” */}
+                    </div>
+                  </div>
+                </div>
               </button>
             ))}
           </div>

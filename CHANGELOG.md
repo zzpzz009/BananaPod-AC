@@ -49,3 +49,15 @@
 
 验证说明：
 - 打开页面，鼠标悬停在香蕉按钮，查看悬浮面板布局与按钮排列是否更紧凑、分组更清晰；并确认点击热区无回归问题
+
+## v0.5.2 (2025-11-12)
+
+- style(card-title): 卡片标题居中显示，中文标题应用“阿里妈妈数黑体 Bold”，字号提升为 1.2 倍，增加文字阴影与字距（0.06em），在深色背景下可读性更佳
+- i18n(preset-label): 卡片右侧徽标文案改为本地化的“预设/Preset”，并移除描边样式；在 `translations.ts` 新增 `bananaSidebar.presetLabel`
+- i18n(weather-prompts): 为中文天气卡片 7 个预设提示词统一添加前缀“保持画面主体和结构不变，将天气氛围改为…”，并为英文卡片同步添加等效前缀“Keep the main subject and composition unchanged; change the weather ambiance to …”
+- feat(font): 在 `index.html` 全局引入阿里妈妈数黑体的 `@font-face`，用于中文标题显示（英文自动回退到默认字体）
+- chore(version): 将 `package.json` 与 `metadata.json` 版本更新为 `0.5.2`
+
+验证说明：
+- 进入页面，查看香蕉预设卡片：标题应居中显示，中文标题使用阿里妈妈数黑体，字号更大且有阴影与字距；右侧徽标应显示“预设/Preset”且无描边
+- 切换中英文界面，点击 7 个天气卡片，生成或编辑时应看到提示词前缀分别为中文与英文的等效语句
