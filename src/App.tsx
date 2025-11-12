@@ -598,6 +598,7 @@ const App: React.FC = () => {
                     height: img.height,
                     href: dataUrl,
                     mimeType: mimeType,
+                    opacity: 100,
                 };
                 setElements(prev => [...prev, newImage]);
                 setSelectedElementIds([newImage.id]);

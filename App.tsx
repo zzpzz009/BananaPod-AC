@@ -323,7 +323,7 @@ const flattenElementsToImage = (
             let elementSvgString = '';
             switch (element.type) {
                 case 'image': {
-                    elementSvgString = `<image href="${element.href}" x="${element.x + offsetX}" y="${element.y + offsetY}" width="${element.width}" height="${element.height}" />`;
+                    elementSvgString = `<image href="${element.href}" x="${element.x + offsetX}" y="${element.y + offsetY}" width="${element.width}" height="${element.height}" opacity="${typeof element.opacity === 'number' ? element.opacity / 100 : 1}" />`;
                     break;
                 }
                 case 'path': {
@@ -872,6 +872,7 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
                     height: img.height,
                     href: dataUrl,
                     mimeType: mimeType,
+                    opacity: 100,
                 };
                 setElements(prev => [...prev, newImage]);
                 setSelectedElementIds([newImage.id]);
@@ -2107,7 +2108,7 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
                 return `<path d="${pathData}" stroke="${el.strokeColor}" stroke-width="${el.strokeWidth}" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="${el.strokeOpacity || 1}" />`;
              }
              if (el.type === 'image') {
-                 return `<image href="${el.href}" x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" />`;
+                 return `<image href="${el.href}" x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" opacity="${typeof el.opacity === 'number' ? el.opacity / 100 : 1}" />`;
              }
              // Add other element types for more accurate thumbnails if needed
              return '';
@@ -2340,6 +2341,7 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
                                             width={el.width} 
                                             height={el.height} 
                                             className={croppingState && croppingState.elementId !== el.id ? 'opacity-30' : ''} 
+                                            opacity={typeof el.opacity === 'number' ? el.opacity / 100 : 1}
                                             clipPath={hasBorderRadius ? `url(#${clipPathId})` : undefined}
                                         />
                                         {selectionComponent}
@@ -2440,22 +2442,22 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
                                         {element.type === 'image' && (
                                             <>
                                                 <div className="h-6 w-px bg-gray-200"></div>
-                                                <div title={t('contextMenu.borderRadius')} className="flex items-center space-x-1 p-1">
-                                                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-600"><path d="M10 3H5a2 2 0 0 0-2 2v5"/></svg>
+                                                <div title={t('contextMenu.opacity')} className="flex items-center space-x-1 p-1">
+                                                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-600"><circle cx="12" cy="12" r="9"/></svg>
                                                     <input 
                                                         type="range" 
                                                         min="0" 
-                                                        max={Math.min(element.width, element.height) / 2} 
-                                                        value={element.borderRadius || 0} 
-                                                        onChange={e => handlePropertyChange(element.id, { borderRadius: parseInt(e.target.value, 10) })} 
+                                                        max={100} 
+                                                        value={typeof element.opacity === 'number' ? element.opacity : 100} 
+                                                        onChange={e => handlePropertyChange(element.id, { opacity: parseInt(e.target.value, 10) })} 
                                                         className="w-16" 
                                                     />
                                                     <input
                                                         type="number"
                                                         min="0"
-                                                        max={Math.min(element.width, element.height) / 2}
-                                                        value={element.borderRadius || 0}
-                                                        onChange={e => handlePropertyChange(element.id, { borderRadius: parseInt(e.target.value, 10) || 0 })}
+                                                        max={100}
+                                                        value={typeof element.opacity === 'number' ? element.opacity : 100}
+                                                        onChange={e => handlePropertyChange(element.id, { opacity: parseInt(e.target.value, 10) || 0 })}
                                                         className="w-14 p-1 text-xs border rounded bg-gray-100 text-gray-800"
                                                     />
                                                 </div>

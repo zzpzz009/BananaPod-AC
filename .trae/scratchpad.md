@@ -80,7 +80,20 @@
   - [x] 香蕉悬浮面板底色完全透明化
     - 实现：新增 `.pod-panel-transparent` 类（透明背景、移除背景图层），并在 `components/BananaSidebar.tsx` 将容器类从 `pod-panel-yellow-gradient` 替换为 `pod-panel-transparent`；保留 `pod-panel-rounded-xl` 圆角，同时在 `.pod-panel-transparent` 中覆盖 `border:none; box-shadow:none` 以移除 `pod-panel` 默认边框与阴影，实现完全“无痕”。
     - 成功标准：面板容器底色为完全透明；卡片内容与交互保持原样；无浏览器与终端错误。
-    - 验证：已在 `http://localhost:3000/` 预览确认，浏览器无错误；建议同步检查终端日志。
+  - 验证：已在 `http://localhost:3000/` 预览确认，浏览器无错误；建议同步检查终端日志。
+
+### 工具栏调整：图片透明度控制（2025-11-12）
+- [x] 为 `ImageElement` 类型新增 `opacity: number`（0–100，默认100为不透明）
+- [x] 在添加图片时设置默认 `opacity: 100`（`App.tsx` 与 `src/App.tsx`）
+- [x] 将图像工具栏中“圆角”滑块与数字输入替换为“透明度”滑块与数字输入（范围0–100）
+- [x] 在画布渲染 `<image>` 元素上应用 `opacity={el.opacity/100}`
+- [x] 在导出合并与缩略图生成的 SVG 字符串中写入 `opacity="..."`
+- 成功标准：
+  - 工具栏显示“透明度”控件，默认值为 100；滑动或输入数值能实时影响图片透明度
+  - 保持历史图像的圆角渲染逻辑不变（如已有 `borderRadius` 仍正常通过 `clipPath` 生效）
+  - 预览页面可正常渲染，无终端/控制台错误
+- 验证：已启动 Vite 开发服务器并通过 `http://localhost:3001/` 预览；图片透明度随控件变更即时生效；无报错
+
 
 ## 当前状态/进度跟踪
 
