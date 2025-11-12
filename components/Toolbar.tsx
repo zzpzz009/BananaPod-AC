@@ -34,7 +34,7 @@ const ToolButton: React.FC<{
         aria-label={label}
         title={label}
         disabled={disabled}
-        className={`pod-icon-button ${className}`}
+        className={`pod-icon-button ${isActive ? 'active' : ''} ${className}`}
         style={isActive ? { backgroundColor: 'var(--text-accent)', color: 'var(--bg-page)' } : {}}
     >
         {icon}

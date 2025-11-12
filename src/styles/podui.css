@@ -15,6 +15,9 @@
   --transition-speed-fast: 0.15s;
   --transition-speed-normal: 0.2s;
 
+  /* Floating bars corner radius */
+  --pod-toolbar-radius: 22px;
+
   /* Bridge for existing components */
   --ui-bg-color: var(--bg-component);
   --button-bg-color: var(--text-accent);
@@ -84,7 +87,8 @@
 .pod-toolbar {
   background-color: var(--bg-component);
   border: 1px solid var(--border-color);
-  border-radius: 9999px;
+  /* Corner radius for floating bars; adjustable via --pod-toolbar-radius */
+  border-radius: var(--pod-toolbar-radius, 16px);
   box-shadow: var(--shadow-lg);
 }
 
@@ -130,10 +134,11 @@
   color: var(--text-primary);
   background: transparent;
   border: 1px solid transparent;
-  border-radius: var(--border-radius-base);
+  border-radius: 15px;
   padding: 6px;
   transition: all var(--transition-speed-fast);
 }
+.pod-icon-button.active { border-radius: 15px; }
 .pod-icon-button:hover {
   background-color: rgba(255, 255, 255, 0.06);
   border-color: var(--border-color);
@@ -281,4 +286,52 @@
 .pod-solid-gray {
   background-color: #2a2a2a;
   background-image: none;
+}
+
+/* Scoped horizontal scrollbar styling inspired by PodUI copy.html's range slider */
+.pod-scrollbar-x {
+  scrollbar-color: #1a1a1a #2a2a2a; /* Firefox */
+  scrollbar-width: thin;
+}
+.pod-scrollbar-x::-webkit-scrollbar {
+  height: 12px; /* horizontal scrollbar height */
+}
+.pod-scrollbar-x::-webkit-scrollbar-track {
+  background: #2a2a2a; /* similar to bg-neutral-800 */
+  border-radius: 8px;
+}
+.pod-scrollbar-x::-webkit-scrollbar-thumb {
+  background: #1a1a1a; /* dark thumb like slider knob */
+  border: 1px solid #e5e7eb; /* light ring to match image */
+  border-radius: 9999px; /* pill/circle */
+  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+}
+.pod-scrollbar-x::-webkit-scrollbar-thumb:hover {
+  background: #111111;
+}
+.pod-scrollbar-x::-webkit-scrollbar-thumb:active {
+  background: #0c0c0c;
+}
+
+/* Banana panel overrides */
+.pod-panel.pod-panel-black { background-color: #000; }
+.pod-panel-rounded-xl { border-radius: 22px; }
+/* Banana panel yellow gradient background */
+.pod-panel-yellow-gradient {
+  /* Base yellow tone + layered gradients to match example */
+  background-color: #F2C94C; /* vivid yellow base */
+  background-image:
+    radial-gradient(140% 120% at 20% 15%, rgba(255, 247, 198, 0.55) 0%, rgba(255, 247, 198, 0) 60%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.06) 100%),
+    linear-gradient(135deg, #F2C94C 0%, #E0B03C 55%, #C69210 100%);
+  background-blend-mode: soft-light, overlay, normal;
+  border: 1px solid rgba(198, 146, 16, 0.45);
+  box-shadow: var(--shadow-md);
+}
+/* Banana panel transparent background */
+.pod-panel-transparent {
+  background-color: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  box-shadow: none !important;
 }

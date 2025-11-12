@@ -2633,6 +2633,7 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
                         setPrompt={setPrompt}
                         onGenerate={handleGenerate}
                         disabled={isLoading}
+                        promptBarOffsetPx={bananaLeftOffset}
                     />
                 </div>
             )}

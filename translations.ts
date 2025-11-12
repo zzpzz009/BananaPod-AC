@@ -62,6 +62,27 @@ const QUICK_PROMPTS_ZHO = [
     { name: '表情参考', value: '人物换成新图片的表情' },
 ];
 
+// Weather cards for BananaSidebar (bilingual)
+const BANANA_CARDS_EN: { name: string; value: string }[] = [
+  { name: 'Sunny', value: 'Keep the main subject and composition unchanged; change the weather ambiance to Sunny: bright, warm sunlight, clear blue sky, crisp shadows.' },
+  { name: 'Morning', value: 'Keep the main subject and composition unchanged; change the weather ambiance to Morning: soft morning light, golden hour glow, long gentle shadows, fresh atmosphere.' },
+  { name: 'Dusk', value: 'Keep the main subject and composition unchanged; change the weather ambiance to Dusk: sunset glow, orange-pink tones, softer contrast, calm mood.' },
+  { name: 'Night Scene', value: 'Keep the main subject and composition unchanged; change the weather ambiance to Night Scene: deep blues, city lights, neon highlights, reflective surfaces.' },
+  { name: 'Overcast', value: 'Keep the main subject and composition unchanged; change the weather ambiance to Overcast: diffuse soft light, grey sky, low contrast, subtle shadows.' },
+  { name: 'Rainy', value: 'Keep the main subject and composition unchanged; change the weather ambiance to Rainy: wet surfaces, raindrops, reflections, moody cinematic feel.' },
+  { name: 'Snowy', value: 'Keep the main subject and composition unchanged; change the weather ambiance to Snowy: snow-covered ground, cool tones, soft light, serene atmosphere.' },
+];
+
+const BANANA_CARDS_ZHO: { name: string; value: string }[] = [
+  { name: '晴天', value: '保持画面主体和结构不变，将天气氛围改为晴天：明亮温暖的阳光、湛蓝天空、清晰利落的阴影。' },
+  { name: '清晨', value: '保持画面主体和结构不变，将天气氛围改为清晨：柔和晨光、黄金时刻、细长而轻柔的阴影、新鲜通透的氛围。' },
+  { name: '黄昏', value: '保持画面主体和结构不变，将天气氛围改为黄昏：日落余晖、橙粉色调、对比更柔和、氛围宁静。' },
+  { name: '夜景', value: '保持画面主体和结构不变，将天气氛围改为夜景：深蓝色调、城市灯光、霓虹高光、地面与物体反射明显。' },
+  { name: '阴天', value: '保持画面主体和结构不变，将天气氛围改为阴天：漫射柔光、灰色天空、低对比度、阴影轻微且柔和。' },
+  { name: '雨天', value: '保持画面主体和结构不变，将天气氛围改为雨天：潮湿路面、雨滴与水珠、倒影丰富、整体氛围情绪化。' },
+  { name: '雪景', value: '保持画面主体和结构不变，将天气氛围改为雪景：地面覆雪或飘雪、冷色调、柔和光照、静谧通透的氛围。' },
+];
+
 export const translations = {
   en: {
     toolbar: {
@@ -105,6 +126,10 @@ export const translations = {
     },
     quickPromptsAriaLabel: 'Select a quick effect',
     quickPrompts: QUICK_PROMPTS_EN,
+    bananaCards: BANANA_CARDS_EN,
+    bananaSidebar: {
+        presetLabel: 'Preset',
+    },
     myEffects: {
         title: 'My Effects',
         saveEffectTooltip: 'Save as custom effect',
@@ -200,6 +225,10 @@ export const translations = {
     },
     quickPromptsAriaLabel: '选择一个快捷效果',
     quickPrompts: QUICK_PROMPTS_ZHO,
+    bananaCards: BANANA_CARDS_ZHO,
+    bananaSidebar: {
+        presetLabel: '预设',
+    },
     myEffects: {
         title: '我的效果',
         saveEffectTooltip: '保存为自定义效果',
