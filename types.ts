@@ -28,6 +28,8 @@ export interface ImageElement extends CanvasElementBase {
   height: number;
   mimeType: string;
   borderRadius?: number;
+  // 0-100 scale; 100 means fully opaque
+  opacity?: number;
 }
 
 export interface VideoElement extends CanvasElementBase {
