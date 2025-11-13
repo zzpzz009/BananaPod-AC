@@ -94,6 +94,42 @@
   - 预览页面可正常渲染，无终端/控制台错误
 - 验证：已启动 Vite 开发服务器并通过 `http://localhost:3001/` 预览；图片透明度随控件变更即时生效；无报错
 
+### 发布：推送分支与标签到远端（2025-11-13）
+- [x] 推送分支 `feat/nano-banana-generations` 到 `origin`
+- [x] 推送注释标签 `v0.5.3` 到 `origin`
+- 成功标准：远端仓库存在对应分支与标签；本地 `git tag -l v0.5.3` 与 `git ls-remote --tags origin` 能看到标签；`git push` 输出无错误。
+- 调试信息：
+  - `git push origin feat/nano-banana-generations` → `40a3931..10d0ed3`
+  - `git push origin v0.5.3` → `[new tag] v0.5.3 -> v0.5.3`
+  - 远端：`https://github.com/zzpzz009/BananaPod-AC.git`
+
+### 打包：生成 Windows 单文件 exe（Electron Portable）（2025-11-13）
+- [x] 新增 `electron/main.js` 主进程，开发态加载 `http://localhost:3000/`，生产态加载 `dist/index.html`
+- [x] 在 `vite.config.ts` 增加条件 `base: './'`（`BUILD_TARGET=electron`）以适配 `file://` 路径
+- [x] 在 `package.json` 增加：`main: electron/main.js`、脚本 `build:electron`、`dist:win`，并配置 `electron-builder` 的 `win.target=portable`
+- [x] 安装依赖：`electron`、`electron-builder`、`cross-env`
+- [x] 构建并打包：`npm run dist:win`
+- 产物与验证：
+  - 生成文件：`release/BananaPod-0.5.3-portable.exe`
+  - 运行验证：用 `Start-Process` 启动可执行文件，命令成功返回；建议手动打开进行界面验收。
+- 成功标准：产生单文件 `*.portable.exe`；启动后显示 BananaPod UI，功能与网页一致；无致命错误。
+
+#### 打包错误修复（2025-11-13 晚）
+- 问题：运行 portable.exe 弹窗报错“require is not defined in ES module scope”，原因是 `package.json` 设置了 `"type": "module"`，而主进程入口使用了 CommonJS `require`。
+- 解决：将主进程入口文件改名为 `electron/main.cjs`，并在 `package.json` 的 `main` 与 `build.extraMetadata.main` 改为 `electron/main.cjs`。
+- 验证：
+  - 重新执行 `npm run dist:win`，等待便携版产物释放；过程中若被安全软件锁定，日志会显示等待解锁，可稍后再试。
+  - 先运行 `release/win-unpacked/BananaPod.exe` 进行快速验证（资源已打包到 `app` 目录），启动命令返回成功；建议你双击确认 UI 能正常加载。
+  - 成功标准：启动不再出现 ESM/require 报错，应用窗口正常显示。
+
+#### 资源路径修复（香蕉按钮与天气图标）（2025-11-13 晚）
+- 问题：图标使用绝对路径 `"/..."`，在 Electron 的 `file://` 环境下会解析为磁盘根路径，导致图标无法显示。
+- 解决：新增 `withBase(p)` 辅助方法，统一将路径前缀改为 `import.meta.env.BASE_URL`（开发态为 `/`，生产 Electron 为 `./`），将 `BananaSidebar.tsx` 中的图标路径改为 `withBase('OpenMoji-color_1F34C.svg')` 与 `withBase('weather/xxx.svg')`。
+- 验证：
+  - 在开发服务器 `http://localhost:3000/` 预览，无错误；香蕉图标与天气卡片图标均正常显示。
+  - 重新打包后运行 `release/win-unpacked/BananaPod.exe`，启动命令返回成功；建议双击确认图标显示正常。
+  - 成功标准：exe 中香蕉按钮与天气卡片图标均显示，无 404 或加载错误。
+
 
 ## 当前状态/进度跟踪
 

@@ -9,10 +9,17 @@ interface BananaSidebarProps {
   promptBarOffsetPx?: number;
 }
 
-// Use external SVG as icon logo
+// Base URL helper to support dev ("/") and electron build ("./")
+const BASE_URL = (import.meta as any)?.env?.BASE_URL || '/';
+const withBase = (p: string) => {
+  const normalized = p.startsWith('/') ? p.slice(1) : p;
+  return `${BASE_URL}${normalized}`;
+};
+
+// Use external SVG as icon logo (served from public/)
 const BananaIcon: React.FC<{ size?: number }> = ({ size = 40 }) => (
   <img
-    src="/OpenMoji-color_1F34C.svg"
+    src={withBase('OpenMoji-color_1F34C.svg')}
     width={size}
     height={size}
     alt="Banana logo"
@@ -29,7 +36,7 @@ const makeSvgDataUrl = (label: string) => {
   const safe = label.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const svg = `<?xml version='1.0' encoding='UTF-8'?>\n` +
     `<svg xmlns='http://www.w3.org/2000/svg' width='120' height='80'>\n` +
-    `<defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='#fff176'/><stop offset='100%' stop-color='#ffd54f'/></linearGradient></defs>\n` +
+    `<defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='#F9E76D'/><stop offset='100%' stop-color='#F5DF4D'/></linearGradient></defs>\n` +
     `<rect width='100%' height='100%' rx='8' ry='8' fill='url(#g)'/>\n` +
     `<text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' font-family='system-ui, sans-serif' font-size='12' fill='#3b2f1e'>${safe}</text>\n` +
     `</svg>`;
@@ -71,21 +78,21 @@ const resolvePhotoUrl = (label: string): string | null => {
 // Map localized card names to local weather icon assets
 const ICON_MAP: Record<string, string> = {
   // Chinese
-  '晴天': '/weather/sun.svg',
-  '清晨': '/weather/sunrise.svg',
-  '黄昏': '/weather/sunset.svg',
-  '夜景': '/weather/night_city.svg',
-  '阴天': '/weather/cloud.svg',
-  '雨天': '/weather/rain.svg',
-  '雪景': '/weather/snow.svg',
+  '晴天': withBase('weather/sun.svg'),
+  '清晨': withBase('weather/sunrise.svg'),
+  '黄昏': withBase('weather/sunset.svg'),
+  '夜景': withBase('weather/night_city.svg'),
+  '阴天': withBase('weather/cloud.svg'),
+  '雨天': withBase('weather/rain.svg'),
+  '雪景': withBase('weather/snow.svg'),
   // English
-  'Sunny': '/weather/sun.svg',
-  'Morning': '/weather/sunrise.svg',
-  'Dusk': '/weather/sunset.svg',
-  'Night Scene': '/weather/night_city.svg',
-  'Overcast': '/weather/cloud.svg',
-  'Rainy': '/weather/rain.svg',
-  'Snowy': '/weather/snow.svg',
+  'Sunny': withBase('weather/sun.svg'),
+  'Morning': withBase('weather/sunrise.svg'),
+  'Dusk': withBase('weather/sunset.svg'),
+  'Night Scene': withBase('weather/night_city.svg'),
+  'Overcast': withBase('weather/cloud.svg'),
+  'Rainy': withBase('weather/rain.svg'),
+  'Snowy': withBase('weather/snow.svg'),
 };
 
 const resolveIconUrl = (label: string): string | null => {
@@ -241,10 +248,10 @@ export const BananaSidebar: React.FC<BananaSidebarProps> = ({ t, setPrompt, onGe
       `}</style>
       {isOpen && (
         <div
-          className="absolute bottom-full left-1/2 mb-6 w-[64rem] max-w-[90vw] pod-panel pod-panel-transparent pod-panel-rounded-xl p-3 overflow-x-auto overflow-y-hidden pod-scrollbar-x"
+          className="absolute bottom-full left-1/2 mb-6 sm:w-full md:w-[48rem] lg:w-[64rem] max-w-[90vw] pod-panel pod-panel-transparent pod-panel-rounded-xl p-3 overflow-x-auto overflow-y-hidden pod-scrollbar-x"
           style={{ transform: `translateX(calc(-50% + ${promptBarOffsetPx}px))` }}
         >
-          <div className="flex flex-row gap-2 justify-center">
+          <div className="flex flex-row gap-2 justify-center flex-wrap md:flex-nowrap">
             {(builtInPrompts || []).slice(0, 7).map((item, idx) => (
               <button
                 key={idx}

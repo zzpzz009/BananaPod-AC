@@ -79,10 +79,10 @@ export const PromptBar: React.FC<PromptBarProps> = ({
     };
 
     return (
-        <div ref={containerRef} className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 w-full max-w-3xl px-4">
+        <div ref={containerRef} className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 w-full sm:max-w-full md:max-w-2xl lg:max-w-3xl px-4">
             <div 
                 style={{ ...containerStyle, ['--pod-ring-width' as any]: '1px' }}
- className="flex items-center gap-2 p-2 pod-toolbar pod-elevated-outline pod-bar-soft-gradient pod-inner-gradient-ring"
+ className="flex items-center gap-2 p-2 pod-toolbar pod-elevated-outline pod-bar-soft-gradient pod-inner-gradient-ring flex-wrap md:flex-nowrap"
             >
                 {/* Left area previously hosting BananaSidebar; now empty to keep layout tight */}
                  <div className="flex-shrink-0 flex items-center rounded-full p-1">
@@ -92,10 +92,10 @@ export const PromptBar: React.FC<PromptBarProps> = ({
                 
                 {generationMode === 'video' && (
                     <div className="flex-shrink-0 flex items-center rounded-full p-1 ml-1">
-                        <button onClick={() => setVideoAspectRatio('16:9')} title={t('promptBar.aspectRatioHorizontal')} className="pod-icon-button" style={videoAspectRatio === '16:9' ? { backgroundColor: 'var(--text-accent)', color: 'var(--bg-page)' } : {}}>
+                        <button onClick={() => setVideoAspectRatio('16:9')} aria-label={t('promptBar.aspectRatioHorizontal')} title={t('promptBar.aspectRatioHorizontal')} className="pod-icon-button" style={videoAspectRatio === '16:9' ? { backgroundColor: 'var(--text-accent)', color: 'var(--bg-page)' } : {}}>
                              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="10" rx="2" ry="2"></rect></svg>
                         </button>
-                        <button onClick={() => setVideoAspectRatio('9:16')} title={t('promptBar.aspectRatioVertical')} className="pod-icon-button" style={videoAspectRatio === '9:16' ? { backgroundColor: 'var(--text-accent)', color: 'var(--bg-page)' } : {}}>
+                        <button onClick={() => setVideoAspectRatio('9:16')} aria-label={t('promptBar.aspectRatioVertical')} title={t('promptBar.aspectRatioVertical')} className="pod-icon-button" style={videoAspectRatio === '9:16' ? { backgroundColor: 'var(--text-accent)', color: 'var(--bg-page)' } : {}}>
                              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="7" y="2" width="10" height="20" rx="2" ry="2"></rect></svg>
                         </button>
                     </div>

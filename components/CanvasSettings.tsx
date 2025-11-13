@@ -17,6 +17,7 @@ interface CanvasSettingsProps {
     wheelAction: WheelAction;
     setWheelAction: (action: WheelAction) => void;
     t: (key: string) => string;
+    
 }
 
 export const CanvasSettings: React.FC<CanvasSettingsProps> = ({
@@ -47,7 +48,7 @@ export const CanvasSettings: React.FC<CanvasSettingsProps> = ({
             >
                 <div className="flex justify-between items-center">
                     <h3 className="text-lg" style={{ color: 'var(--text-heading)', fontWeight: 600 }}>{t('settings.title')}</h3>
-                    <button onClick={onClose} className="pod-icon-button">
+                    <button onClick={onClose} aria-label={t('settings.close')} className="pod-icon-button">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                     </button>
                 </div>
@@ -71,6 +72,8 @@ export const CanvasSettings: React.FC<CanvasSettingsProps> = ({
                         </button>
                     </div>
                 </div>
+
+                
 
                 {/* UI Theme Settings */}
                 <div className="space-y-3">

@@ -131,7 +131,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         return (
             <div 
                 style={containerStyle}
-                className="absolute top-1/2 left-4 -translate-y-1/2 z-10 pod-panel px-2 py-4 flex flex-col items-center space-y-2 w-[88px]"
+                className="absolute top-1/2 left-4 -translate-y-1/2 z-10 pod-panel px-2 py-4 flex flex-col items-center space-y-2 w-auto min-w-[72px]"
             >
                 <span className="text-sm" style={{ color: 'var(--text-heading)', fontWeight: 500 }}>{t('toolbar.crop.title')}</span>
                 <div className="w-full my-2" style={{ height: '1px', backgroundColor: 'var(--border-color)' }}></div>

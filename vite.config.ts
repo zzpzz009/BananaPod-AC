@@ -4,7 +4,9 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
-    return {
+    const isElectron = env.BUILD_TARGET === 'electron' || env.VITE_ELECTRON === 'true';
+  return {
+      base: isElectron ? './' : '/',
       server: {
         port: 3000,
         host: '0.0.0.0',
@@ -35,7 +37,7 @@ export default defineConfig(({ mode }) => {
         'process.env.WHATAI_IMAGE_GENERATION_MODEL': JSON.stringify(env.WHATAI_IMAGE_GENERATION_MODEL || 'qwen-image'),
         'process.env.WHATAI_IMAGE_EDIT_MODEL': JSON.stringify(env.WHATAI_IMAGE_EDIT_MODEL || 'gemini-2.5-flash-image'),
         'process.env.WHATAI_VIDEO_MODEL': JSON.stringify(env.WHATAI_VIDEO_MODEL || 'vidu-1'),
-        'process.env.PROXY_VIA_VITE': JSON.stringify(env.PROXY_VIA_VITE || 'true')
+        'process.env.PROXY_VIA_VITE': JSON.stringify(isElectron ? 'false' : (env.PROXY_VIA_VITE || 'true'))
       },
       resolve: {
         alias: {

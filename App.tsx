@@ -598,6 +598,7 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
         return result || key;
     }, [language]);
 
+
     useEffect(() => {
         const root = document.documentElement;
         const hex = uiTheme.color.replace('#', '');
@@ -2119,7 +2120,7 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
     }, []);
 
     return (
-            <div className="w-screen h-screen flex flex-col font-sans podui-theme pod-solid-gray" onDragOver={handleDragOver} onDrop={handleDrop}>
+            <div className="w-screen h-screen flex flex-col font-sans podui-theme" onDragOver={handleDragOver} onDrop={handleDrop}>
             {isLoading && <Loader progressMessage={progressMessage} />}
             {error && (
                 <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 p-3 bg-red-100 border border-red-400 text-red-700 rounded-md shadow-lg flex items-center max-w-lg">
@@ -2218,7 +2219,7 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
                 >
                     <defs>
                         <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-                            <circle cx="1" cy="1" r="1" className="fill-gray-400 opacity-50"/>
+                            <circle cx="1" cy="1" r="1" style={{ fill: 'var(--grid-dot-color)', opacity: 'var(--grid-dot-opacity)' }}/>
                         </pattern>
                          {elements.map(el => {
                             if (el.type === 'image' && el.borderRadius && el.borderRadius > 0) {
