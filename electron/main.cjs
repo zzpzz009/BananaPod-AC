@@ -7,6 +7,10 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
+    backgroundColor: '#3f3f3f',
+    titleBarStyle: 'hidden',
+    titleBarOverlay: { color: '#2a2a30', symbolColor: '#d6d6df', height: 40 },
+    autoHideMenuBar: true,
     webPreferences: {
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.cjs'),

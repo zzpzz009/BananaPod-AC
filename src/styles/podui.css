@@ -337,3 +337,92 @@
   border: none !important;
   box-shadow: none !important;
 }
+
+.pod-titlebar-drag {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 40px;
+  z-index: 50;
+  -webkit-app-region: drag;
+  user-select: none;
+  background: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%), var(--bg-component);
+  border-bottom: 1px solid var(--border-color);
+  backdrop-filter: blur(16px);
+}
+
+.pod-titlebar-drag::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+  opacity: 0.5;
+}
+
+.pod-titlebar-content {
+  -webkit-app-region: drag;
+  max-width: none;
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 16px;
+  padding: 0 25px;
+}
+
+.pod-titlebar-brand {
+  color: #6b6b6b;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0px;
+}
+
+.pod-titlebar-logo {
+  width: auto;
+  height: 36px;
+  color: #6b6b6b;
+  margin-right: -65px;
+}
+.pod-titlebar-logo path { stroke-width: 1.5; }
+
+.pod-titlebar-brand-text {
+  font-size: 20px;
+  line-height: 20px;
+  color: #6b6b6b;
+}
+
+.pod-titlebar-nav {
+  display: none;
+}
+
+.pod-titlebar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pod-titlebar-link {
+  color: rgba(255,255,255,0.7);
+  text-decoration: none;
+  font-size: 13px;
+  transition: color var(--transition-speed-fast), transform var(--transition-speed-fast);
+}
+.pod-titlebar-link:hover { color: rgba(255,255,255,0.95); transform: scale(1.03); }
+
+.pod-titlebar-cta {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(99,102,241,0.35);
+  color: #f8fafc;
+  background-image: linear-gradient(90deg, #38bdf8, #6366f1);
+  box-shadow: 0 6px 18px rgba(56,189,248,0.25);
+  transition: all var(--transition-speed-fast);
+}
+.pod-titlebar-cta:hover { box-shadow: 0 10px 24px rgba(56,189,248,0.4); transform: scale(1.05); }
