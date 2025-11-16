@@ -14,13 +14,52 @@ import { CanvasSettings } from './components/CanvasSettings';
 import { LayerPanel } from './components/LayerPanel';
 import { BoardPanel } from './components/BoardPanel';
 import type { Tool, Point, Element, ImageElement, PathElement, ShapeElement, TextElement, ArrowElement, UserEffect, LineElement, WheelAction, GroupElement, Board, VideoElement } from './types';
+import { rasterizeElement, rasterizeElements, flattenElementsToImage } from '@/utils/canvas';
 import { editImage, generateImageFromText, generateVideo } from './services/geminiService';
 import { fileToDataUrl } from './utils/fileUtils';
 import { translations } from './translations';
-import { getElementBounds, rasterizeElement, rasterizeElements, flattenElementsToImage } from '@/utils/canvas';
 
 const generateId = () => `id_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
+const getElementBounds = (element: Element, allElements: Element[] = []): { x: number; y: number; width: number; height: number } => {
+    if (element.type === 'group') {
+        const children = allElements.filter(el => el.parentId === element.id);
+        if (children.length === 0) {
+            return { x: element.x, y: element.y, width: element.width, height: element.height };
+        }
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        children.forEach(child => {
+            const bounds = getElementBounds(child, allElements);
+            minX = Math.min(minX, bounds.x);
+            minY = Math.min(minY, bounds.y);
+            maxX = Math.max(maxX, bounds.x + bounds.width);
+            maxY = Math.max(maxY, bounds.y + bounds.height);
+        });
+        return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+    }
+    if (element.type === 'image' || element.type === 'shape' || element.type === 'text' || element.type === 'video') {
+        return { x: element.x, y: element.y, width: element.width, height: element.height };
+    }
+    if (element.type === 'arrow' || element.type === 'line') {
+        const { points } = element;
+        const minX = Math.min(points[0].x, points[1].x);
+        const maxX = Math.max(points[0].x, points[1].x);
+        const minY = Math.min(points[0].y, points[1].y);
+        const maxY = Math.max(points[0].y, points[1].y);
+        return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+    }
+    const { points } = element;
+    if (points.length === 0) return { x: 0, y: 0, width: 0, height: 0 };
+    let minX = points[0].x, maxX = points[0].x;
+    let minY = points[0].y, maxY = points[0].y;
+    for (const p of points) {
+        minX = Math.min(minX, p.x);
+        maxX = Math.max(maxX, p.x);
+        minY = Math.min(minY, p.y);
+        maxY = Math.max(maxY, p.y);
+    }
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
 
 type Rect = { x: number; y: number; width: number; height: number };
 type Guide = { type: 'v' | 'h'; position: number; start: number; end: number };
@@ -39,244 +78,23 @@ const isPointInPolygon = (point: Point, polygon: Point[]): boolean => {
     return isInside;
 };
 
+// moved to '@/utils/canvas'
 
-const rasterizeElements = (elementsToRasterize: Exclude<Element, ImageElement | VideoElement>[]): Promise<{ href: string; mimeType: 'image/png', width: number, height: number }> => {
-    return new Promise((resolve, reject) => {
-        if (elementsToRasterize.length === 0) {
-            return reject(new Error("No elements to rasterize."));
-        }
+// moved to '@/utils/canvas'
 
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        elementsToRasterize.forEach(element => {
-            const bounds = getElementBounds(element);
-            minX = Math.min(minX, bounds.x);
-            minY = Math.min(minY, bounds.y);
-            maxX = Math.max(maxX, bounds.x + bounds.width);
-            maxY = Math.max(maxY, bounds.y + bounds.height);
-        });
-
-        const combinedWidth = maxX - minX;
-        const combinedHeight = maxY - minY;
-
-        if (combinedWidth <= 0 || combinedHeight <= 0) {
-            return reject(new Error('Cannot rasterize elements with zero or negative dimensions.'));
-        }
-
-        const padding = 10;
-        const svgWidth = combinedWidth + padding * 2;
-        const svgHeight = combinedHeight + padding * 2;
         
-        const elementSvgStrings = elementsToRasterize.map(element => {
-            const offsetX = -minX + padding;
-            const offsetY = -minY + padding;
-
-            let elementSvgString = '';
-            switch (element.type) {
-                 case 'path': {
-                    const pointsWithOffset = element.points.map(p => ({ x: p.x + offsetX, y: p.y + offsetY }));
-                    const pathData = pointsWithOffset.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
-                    elementSvgString = `<path d="${pathData}" stroke="${element.strokeColor}" stroke-width="${element.strokeWidth}" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="${element.strokeOpacity || 1}" />`;
-                    break;
-                 }
-                case 'shape': {
-                    const shapeProps = `transform="translate(${element.x + offsetX}, ${element.y + offsetY})" fill="${element.fillColor}" stroke="${element.strokeColor}" stroke-width="${element.strokeWidth}"`;
-                    if (element.shapeType === 'rectangle') elementSvgString = `<rect width="${element.width}" height="${element.height}" rx="${element.borderRadius || 0}" ry="${element.borderRadius || 0}" ${shapeProps} />`;
-                    else if (element.shapeType === 'circle') elementSvgString = `<ellipse cx="${element.width/2}" cy="${element.height/2}" rx="${element.width/2}" ry="${element.height/2}" ${shapeProps} />`;
-                    else if (element.shapeType === 'triangle') elementSvgString = `<polygon points="${element.width/2},0 0,${element.height} ${element.width},${element.height}" ${shapeProps} />`;
-                    break;
-                }
-                case 'arrow': {
-                     const [start, end] = element.points;
-                     const angle = Math.atan2(end.y - start.y, end.x - start.x);
-                     const headLength = element.strokeWidth * 4;
-
-                     const arrowHeadHeight = headLength * Math.cos(Math.PI / 6);
-                     const lineEnd = {
-                        x: end.x - arrowHeadHeight * Math.cos(angle),
-                        y: end.y - arrowHeadHeight * Math.sin(angle),
-                     };
-
-                     const headPoint1 = { x: end.x - headLength * Math.cos(angle - Math.PI / 6), y: end.y - headLength * Math.sin(angle - Math.PI / 6) };
-                     const headPoint2 = { x: end.x - headLength * Math.cos(angle + Math.PI / 6), y: end.y - headLength * Math.sin(angle + Math.PI / 6) };
-                     elementSvgString = `
-                        <line x1="${start.x + offsetX}" y1="${start.y + offsetY}" x2="${lineEnd.x + offsetX}" y2="${lineEnd.y + offsetY}" stroke="${element.strokeColor}" stroke-width="${element.strokeWidth}" stroke-linecap="round" />
-                        <polygon points="${end.x + offsetX},${end.y + offsetY} ${headPoint1.x + offsetX},${headPoint1.y + offsetY} ${headPoint2.x + offsetX},${headPoint2.y + offsetY}" fill="${element.strokeColor}" />
-                     `;
-                    break;
-                }
-                 case 'line': {
-                     const [start, end] = element.points;
-                     elementSvgString = `<line x1="${start.x + offsetX}" y1="${start.y + offsetY}" x2="${end.x + offsetX}" y2="${end.y + offsetY}" stroke="${element.strokeColor}" stroke-width="${element.strokeWidth}" stroke-linecap="round" />`;
-                    break;
-                 }
-                case 'text': {
-                     elementSvgString = `
-                        <foreignObject x="${element.x + offsetX}" y="${element.y + offsetY}" width="${element.width}" height="${element.height}">
-                            <div xmlns="http://www.w3.org/1999/xhtml" style="font-size: ${element.fontSize}px; color: ${element.fontColor}; width: 100%; height: 100%; word-break: break-word; font-family: sans-serif; padding:0; margin:0; line-height: 1.2;">
-                                ${element.text.replace(/\n/g, '<br />')}
-                            </div>
-                        </foreignObject>
-                     `;
-                    break;
-                }
-                case 'group': {
-                    elementSvgString = '';
-                    break;
-                }
-            }
-            return elementSvgString;
-        }).join('');
-
-        const fullSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${svgWidth}" height="${svgHeight}">${elementSvgStrings}</svg>`;
         
-        const img = new Image();
-        img.crossOrigin = "anonymous";
-        const svgDataUrl = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(fullSvg)))}`;
 
-        img.onload = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = svgWidth;
-            canvas.height = svgHeight;
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-                ctx.drawImage(img, 0, 0);
-                resolve({ 
-                    href: canvas.toDataURL('image/png'), 
-                    mimeType: 'image/png',
-                    width: svgWidth,
-                    height: svgHeight
-                });
-            } else {
-                reject(new Error('Could not get canvas context.'));
-            }
-        };
-        img.onerror = (err) => {
-            reject(new Error(`Failed to load SVG into image: ${err}`));
-        };
-        img.src = svgDataUrl;
-    });
-};
+        
 
-// Flatten mixed element types (including images, excluding videos) into a single PNG
-const flattenElementsToImage = (
-    elementsToFlatten: Element[]
-): Promise<{ href: string; mimeType: 'image/png', width: number, height: number, x: number, y: number }> => {
-    return new Promise((resolve, reject) => {
-        const validElements = elementsToFlatten.filter(el => el.type !== 'video');
-        if (validElements.length === 0) {
-            return reject(new Error('No valid elements to flatten.'));
-        }
+        
 
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        validElements.forEach(element => {
-            const bounds = getElementBounds(element, validElements);
-            minX = Math.min(minX, bounds.x);
-            minY = Math.min(minY, bounds.y);
-            maxX = Math.max(maxX, bounds.x + bounds.width);
-            maxY = Math.max(maxY, bounds.y + bounds.height);
-        });
+        
 
-        const combinedWidth = maxX - minX;
-        const combinedHeight = maxY - minY;
+        
+        
+ 
 
-        if (combinedWidth <= 0 || combinedHeight <= 0) {
-            return reject(new Error('Cannot flatten elements with zero or negative dimensions.'));
-        }
-
-        const offsetX = -minX;
-        const offsetY = -minY;
-
-        const elementSvgStrings = validElements.map(element => {
-            let elementSvgString = '';
-            switch (element.type) {
-                case 'image': {
-                    elementSvgString = `<image href="${element.href}" x="${element.x + offsetX}" y="${element.y + offsetY}" width="${element.width}" height="${element.height}" opacity="${typeof element.opacity === 'number' ? element.opacity / 100 : 1}" />`;
-                    break;
-                }
-                case 'path': {
-                    const pointsWithOffset = element.points.map(p => ({ x: p.x + offsetX, y: p.y + offsetY }));
-                    const pathData = pointsWithOffset.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
-                    elementSvgString = `<path d="${pathData}" stroke="${element.strokeColor}" stroke-width="${element.strokeWidth}" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="${element.strokeOpacity || 1}" />`;
-                    break;
-                }
-                case 'shape': {
-                    const shapeProps = `transform="translate(${element.x + offsetX}, ${element.y + offsetY})" fill="${element.fillColor}" stroke="${element.strokeColor}" stroke-width="${element.strokeWidth}"`;
-                    if (element.shapeType === 'rectangle') elementSvgString = `<rect width="${element.width}" height="${element.height}" rx="${element.borderRadius || 0}" ry="${element.borderRadius || 0}" ${shapeProps} />`;
-                    else if (element.shapeType === 'circle') elementSvgString = `<ellipse cx="${element.width/2}" cy="${element.height/2}" rx="${element.width/2}" ry="${element.height/2}" ${shapeProps} />`;
-                    else if (element.shapeType === 'triangle') elementSvgString = `<polygon points="${element.width/2},0 0,${element.height} ${element.width},${element.height}" ${shapeProps} />`;
-                    break;
-                }
-                case 'arrow': {
-                    const [start, end] = element.points;
-                    const angle = Math.atan2(end.y - start.y, end.x - start.x);
-                    const headLength = element.strokeWidth * 4;
-                    const arrowHeadHeight = headLength * Math.cos(Math.PI / 6);
-                    const lineEnd = {
-                        x: end.x - arrowHeadHeight * Math.cos(angle),
-                        y: end.y - arrowHeadHeight * Math.sin(angle),
-                    };
-                    const headPoint1 = { x: end.x - headLength * Math.cos(angle - Math.PI / 6), y: end.y - headLength * Math.sin(angle - Math.PI / 6) };
-                    const headPoint2 = { x: end.x - headLength * Math.cos(angle + Math.PI / 6), y: end.y - headLength * Math.sin(angle + Math.PI / 6) };
-                    elementSvgString = `
-                        <line x1="${start.x + offsetX}" y1="${start.y + offsetY}" x2="${lineEnd.x + offsetX}" y2="${lineEnd.y + offsetY}" stroke="${element.strokeColor}" stroke-width="${element.strokeWidth}" stroke-linecap="round" />
-                        <polygon points="${end.x + offsetX},${end.y + offsetY} ${headPoint1.x + offsetX},${headPoint1.y + offsetY} ${headPoint2.x + offsetX},${headPoint2.y + offsetY}" fill="${element.strokeColor}" />
-                    `;
-                    break;
-                }
-                case 'line': {
-                    const [start, end] = element.points;
-                    elementSvgString = `<line x1="${start.x + offsetX}" y1="${start.y + offsetY}" x2="${end.x + offsetX}" y2="${end.y + offsetY}" stroke="${element.strokeColor}" stroke-width="${element.strokeWidth}" stroke-linecap="round" />`;
-                    break;
-                }
-                case 'text': {
-                    elementSvgString = `
-                        <foreignObject x="${element.x + offsetX}" y="${element.y + offsetY}" width="${element.width}" height="${element.height}">
-                            <div xmlns="http://www.w3.org/1999/xhtml" style="font-size: ${element.fontSize}px; color: ${element.fontColor}; width: 100%; height: 100%; word-break: break-word; font-family: sans-serif; padding:0; margin:0; line-height: 1.2;">
-                                ${element.text.replace(/\n/g, '<br />')}
-                            </div>
-                        </foreignObject>
-                    `;
-                    break;
-                }
-                case 'group': {
-                    elementSvgString = '';
-                    break;
-                }
-            }
-            return elementSvgString;
-        }).join('');
-
-        const fullSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${combinedWidth}" height="${combinedHeight}">${elementSvgStrings}</svg>`;
-
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        const svgDataUrl = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(fullSvg)))}`;
-
-        img.onload = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = combinedWidth;
-            canvas.height = combinedHeight;
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-                ctx.drawImage(img, 0, 0);
-                resolve({
-                    href: canvas.toDataURL('image/png'),
-                    mimeType: 'image/png',
-                    width: combinedWidth,
-                    height: combinedHeight,
-                    x: minX,
-                    y: minY,
-                });
-            } else {
-                reject(new Error('Could not get canvas context.'));
-            }
-        };
-        img.onerror = (err) => {
-            reject(new Error(`Failed to load SVG into image: ${err}`));
-        };
-        img.src = svgDataUrl;
-    });
-};
 
 const rasterizeMask = (
     maskPaths: PathElement[],
@@ -2420,6 +2238,7 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
                     return (
                         <div style={{ top: contextMenu.y, left: contextMenu.x }} className="absolute z-30 bg-white rounded-md shadow-lg border border-gray-200 text-sm py-1 text-gray-800" onContextMenu={e => e.stopPropagation()}>
                            {isGroupable && <button onClick={handleGroup} className="block w-full text-left px-4 py-1.5 hover:bg-gray-100">{t('contextMenu.group')}</button>}
+                           {isGroupable && <button onClick={() => handleMergeLayers('selected')} className="block w-full text-left px-4 py-1.5 hover:bg-gray-100">{t('contextMenu.mergeLayers')}</button>}
                            {isUngroupable && <button onClick={handleUngroup} className="block w-full text-left px-4 py-1.5 hover:bg-gray-100">{t('contextMenu.ungroup')}</button>}
                            {(isGroupable || isUngroupable) && <div className="border-t border-gray-100 my-1"></div>}
                             
@@ -2499,7 +2318,28 @@ export default App;
                 for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
                 const blob = new Blob([bytes], { type: safeMime });
                 const objUrl = URL.createObjectURL(blob);
-                img.onload = () => resolve({ img, href: objUrl });
+                img.onload = () => {
+                    try {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        const ctx = canvas.getContext('2d');
+                        if (ctx) {
+                            ctx.drawImage(img, 0, 0);
+                            const dataUrl = canvas.toDataURL(safeMime);
+                            URL.revokeObjectURL(objUrl);
+                            resolve({ img, href: dataUrl });
+                        } else {
+                            URL.revokeObjectURL(objUrl);
+                            const dataUrl = `data:${safeMime};base64,${safeB64}`;
+                            resolve({ img, href: dataUrl });
+                        }
+                    } catch {
+                        URL.revokeObjectURL(objUrl);
+                        const dataUrl = `data:${safeMime};base64,${safeB64}`;
+                        resolve({ img, href: dataUrl });
+                    }
+                };
                 img.onerror = () => {
                     const dataUrl = `data:${safeMime};base64,${safeB64}`;
                     img.onload = () => resolve({ img, href: dataUrl });

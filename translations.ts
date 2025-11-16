@@ -175,6 +175,7 @@ export const translations = {
         bringToFront: 'Bring to Front',
         sendToBack: 'Send to Back',
         rasterize: 'Rasterize Selection',
+        mergeLayers: 'Merge Layers',
         group: 'Group',
         ungroup: 'Ungroup',
         alignment: {
@@ -278,6 +279,7 @@ export const translations = {
         bringToFront: '置于顶层',
         sendToBack: '置于底层',
         rasterize: '栅格化选中项',
+        mergeLayers: '合并图层',
         group: '创建编组',
         ungroup: '取消编组',
         alignment: {
