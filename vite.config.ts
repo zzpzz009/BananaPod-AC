@@ -8,8 +8,14 @@ export default defineConfig(({ mode }) => {
   return {
       base: isElectron ? './' : '/',
       server: {
-        port: 3000,
+        port: 3001,
         host: '0.0.0.0',
+        hmr: {
+          host: 'localhost',
+          port: 3001,
+          clientPort: 3001,
+          protocol: 'ws',
+        },
         proxy: {
           '/proxy-whatai': {
             target: env.WHATAI_BASE_URL || 'https://api.whatai.cc',

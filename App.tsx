@@ -1393,7 +1393,7 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
         dragStartElementPositions.current.clear();
     };
 
-    const handleWheel = (e: React.WheelEvent<SVGSVGElement>) => {
+  const handleWheel = (e: React.WheelEvent<SVGSVGElement>) => {
         if (croppingState || editingElement) { e.preventDefault(); return; }
         e.preventDefault();
         const { clientX, clientY, deltaX, deltaY, ctrlKey } = e;
@@ -1413,7 +1413,31 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
         } else { // Panning (wheelAction === 'pan' and no ctrlKey)
             updateActiveBoard(b => ({ ...b, panOffset: { x: b.panOffset.x - deltaX, y: b.panOffset.y - deltaY }}));
         }
+  };
+
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+    const listener = (e: WheelEvent) => {
+      if (croppingState || editingElement) { e.preventDefault(); return; }
+      e.preventDefault();
+      const { clientX, clientY, deltaX, deltaY, ctrlKey } = e;
+      if (ctrlKey || wheelAction === 'zoom') {
+        const zoomFactor = 1.05;
+        const oldZoom = zoom;
+        const newZoom = deltaY < 0 ? oldZoom * zoomFactor : oldZoom / zoomFactor;
+        const clampedZoom = Math.max(0.1, Math.min(newZoom, 10));
+        const mousePoint = { x: clientX, y: clientY };
+        const newPanX = mousePoint.x - (mousePoint.x - panOffset.x) * (clampedZoom / oldZoom);
+        const newPanY = mousePoint.y - (mousePoint.y - panOffset.y) * (clampedZoom / oldZoom);
+        updateActiveBoard(b => ({ ...b, zoom: clampedZoom, panOffset: { x: newPanX, y: newPanY } }));
+      } else {
+        updateActiveBoard(b => ({ ...b, panOffset: { x: b.panOffset.x - deltaX, y: b.panOffset.y - deltaY } }));
+      }
     };
+    el.addEventListener('wheel', listener, { passive: false });
+    return () => { el.removeEventListener('wheel', listener as EventListener); };
+  }, [croppingState, editingElement, wheelAction, zoom, panOffset]);
 
     const handleDeleteElement = (id: string) => {
         commitAction(prev => {
@@ -2242,7 +2266,6 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
                     onMouseMove={handleMouseMove}
                     onMouseUp={handleMouseUp}
                     onMouseLeave={handleMouseUp}
-                    onWheel={handleWheel}
                     onContextMenu={handleContextMenu}
                     style={{ cursor }}
                 >
