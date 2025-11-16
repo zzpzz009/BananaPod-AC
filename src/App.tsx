@@ -94,7 +94,28 @@ const loadImageWithFallback = (b64: string, mime: string): Promise<{ img: HTMLIm
             for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
             const blob = new Blob([bytes], { type: safeMime });
             const objUrl = URL.createObjectURL(blob);
-            img.onload = () => resolve({ img, href: objUrl });
+            img.onload = () => {
+                try {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                        ctx.drawImage(img, 0, 0);
+                        const dataUrl = canvas.toDataURL(safeMime);
+                        URL.revokeObjectURL(objUrl);
+                        resolve({ img, href: dataUrl });
+                    } else {
+                        URL.revokeObjectURL(objUrl);
+                        const dataUrl = `data:${safeMime};base64,${safeB64}`;
+                        resolve({ img, href: dataUrl });
+                    }
+                } catch {
+                    URL.revokeObjectURL(objUrl);
+                    const dataUrl = `data:${safeMime};base64,${safeB64}`;
+                    resolve({ img, href: dataUrl });
+                }
+            };
             img.onerror = () => {
                 const dataUrl = `data:${safeMime};base64,${safeB64}`;
                 img.onload = () => resolve({ img, href: dataUrl });

@@ -1,4 +1,4 @@
-import type { Element, ImageElement, Point } from '@/types';
+import type { Element, ImageElement, VideoElement } from '@/types';
 
 export const getElementBounds = (element: Element, allElements: Element[] = []): { x: number; y: number; width: number; height: number } => {
   if (element.type === 'group') {
