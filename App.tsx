@@ -516,7 +516,7 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
         try {
             if (apiKey) localStorage.setItem('WHATAI_API_KEY', apiKey);
             else localStorage.removeItem('WHATAI_API_KEY');
-        } catch {}
+        } catch { void 0; }
     }, [apiKey]);
     const [uiTheme, setUiTheme] = useState({ color: '#171717', opacity: 0.7 });
     const [buttonTheme, setButtonTheme] = useState({ color: '#374151', opacity: 0.8 });
@@ -599,14 +599,14 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
         setUserEffects(prev => prev.filter(effect => effect.id !== id));
     }, []);
 
-    const t = useCallback((key: string, ...args: any[]): any => {
+    const t = useCallback((key: string, ...args: unknown[]): unknown => {
         const keys = key.split('.');
-        let result: any = translations[language];
+        let result: unknown = translations[language];
         for (const k of keys) {
-            result = result?.[k];
+            result = (result as Record<string, unknown> | undefined)?.[k];
         }
         if (typeof result === 'function') {
-            return result(...args);
+            return (result as (...a: unknown[]) => unknown)(...args);
         }
         return result || key;
     }, [language]);
@@ -645,13 +645,13 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
         root.style.setProperty('--bg-gradient-3', adjust(canvasBackgroundColor, -65));
     }, [uiTheme, buttonTheme, canvasBackgroundColor]);
 
-    const updateActiveBoard = (updater: (board: Board) => Board) => {
+    const updateActiveBoard = useCallback((updater: (board: Board) => Board) => {
         setBoards(prevBoards => prevBoards.map(board =>
             board.id === activeBoardId ? updater(board) : board
         ));
-    };
+    }, [activeBoardId]);
 
-    const setElements = (updater: (prev: Element[]) => Element[], commit: boolean = true) => {
+    const setElements = useCallback((updater: (prev: Element[]) => Element[], commit: boolean = true) => {
         updateActiveBoard(board => {
             const newElements = updater(board.elements);
             if (commit) {
@@ -668,7 +668,7 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
                  return { ...board, elements: newElements, history: tempHistory };
             }
         });
-    };
+    }, [updateActiveBoard]);
     
     const commitAction = useCallback((updater: (prev: Element[]) => Element[]) => {
         updateActiveBoard(board => {
@@ -681,7 +681,7 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
                 historyIndex: newHistory.length - 1,
             };
         });
-    }, [activeBoardId]);
+    }, [updateActiveBoard]);
 
     const handleUndo = useCallback(() => {
         updateActiveBoard(board => {
@@ -690,7 +690,7 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
             }
             return board;
         });
-    }, [activeBoardId]);
+    }, [updateActiveBoard]);
 
     const handleRedo = useCallback(() => {
         updateActiveBoard(board => {
@@ -699,7 +699,19 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
             }
             return board;
         });
-    }, [activeBoardId]);
+    }, [updateActiveBoard]);
+
+    const getDescendants = useCallback((elementId: string, allElements: Element[]): Element[] => {
+        const descendants: Element[] = [];
+        const children = allElements.filter(el => el.parentId === elementId);
+        for (const child of children) {
+            descendants.push(child);
+            if (child.type === 'group') {
+                descendants.push(...getDescendants(child.id, allElements));
+            }
+        }
+        return descendants;
+    }, []);
 
     const handleMergeLayers = useCallback(async (mode: 'selected' | 'visible') => {
         const all = elementsRef.current || elements;
@@ -751,19 +763,8 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
             console.error(e);
             setError('合并图层失败：' + (e as Error).message);
         }
-    }, [selectedElementIds, commitAction]);
+    }, [selectedElementIds, elements, commitAction, getDescendants]);
 
-    const getDescendants = useCallback((elementId: string, allElements: Element[]): Element[] => {
-        const descendants: Element[] = [];
-        const children = allElements.filter(el => el.parentId === elementId);
-        for (const child of children) {
-            descendants.push(child);
-            if (child.type === 'group') {
-                descendants.push(...getDescendants(child.id, allElements));
-            }
-        }
-        return descendants;
-    }, []);
 
     const handleStopEditing = useCallback(() => {
         if (!editingElement) return;
@@ -897,7 +898,7 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
             setError('Failed to load image.');
             console.error(err);
         }
-    }, [getCanvasPoint, activeBoardId, setElements]);
+    }, [getCanvasPoint, setElements]);
 
      const getSelectableElement = (elementId: string, allElements: Element[]): Element | null => {
         const element = allElements.find(el => el.id === elementId);
@@ -1393,27 +1394,7 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
         dragStartElementPositions.current.clear();
     };
 
-  const handleWheel = (e: React.WheelEvent<SVGSVGElement>) => {
-        if (croppingState || editingElement) { e.preventDefault(); return; }
-        e.preventDefault();
-        const { clientX, clientY, deltaX, deltaY, ctrlKey } = e;
-
-        if (ctrlKey || wheelAction === 'zoom') {
-            const zoomFactor = 1.05;
-            const oldZoom = zoom;
-            const newZoom = deltaY < 0 ? oldZoom * zoomFactor : oldZoom / zoomFactor;
-            const clampedZoom = Math.max(0.1, Math.min(newZoom, 10));
-
-            const mousePoint = { x: clientX, y: clientY };
-            const newPanX = mousePoint.x - (mousePoint.x - panOffset.x) * (clampedZoom / oldZoom);
-            const newPanY = mousePoint.y - (mousePoint.y - panOffset.y) * (clampedZoom / oldZoom);
-
-            updateActiveBoard(b => ({ ...b, zoom: clampedZoom, panOffset: { x: newPanX, y: newPanY }}));
-
-        } else { // Panning (wheelAction === 'pan' and no ctrlKey)
-            updateActiveBoard(b => ({ ...b, panOffset: { x: b.panOffset.x - deltaX, y: b.panOffset.y - deltaY }}));
-        }
-  };
+  
 
   useEffect(() => {
     const el = svgRef.current;
@@ -1436,8 +1417,8 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
       }
     };
     el.addEventListener('wheel', listener, { passive: false });
-    return () => { el.removeEventListener('wheel', listener as EventListener); };
-  }, [croppingState, editingElement, wheelAction, zoom, panOffset]);
+  return () => { el.removeEventListener('wheel', listener as EventListener); };
+  }, [croppingState, editingElement, wheelAction, zoom, panOffset, updateActiveBoard]);
 
     const handleDeleteElement = (id: string) => {
         commitAction(prev => {
@@ -1601,7 +1582,7 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
                 ), false);
             }
         }
-    }, [editingElement?.text, setElements]);
+    }, [editingElement, setElements]);
 
 
     const handleGenerate = async () => {

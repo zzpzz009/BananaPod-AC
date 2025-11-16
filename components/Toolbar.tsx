@@ -1,5 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
+import type { JSX } from 'react';
 import type { Tool } from '../types';
 
 interface ToolbarProps {

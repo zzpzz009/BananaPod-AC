@@ -43,7 +43,7 @@ function detectMimeFromBase64(b64: string): string {
       if (bin.startsWith('GIF8')) return 'image/gif';
       if (bin.startsWith('RIFF')) return 'image/webp';
     }
-  } catch {}
+  } catch { void 0; }
   return 'image/png';
 }
 
@@ -57,9 +57,10 @@ function extractDataUrlFromText(input: string): { base64: string; mime: string }
   return { base64: b64, mime: outMime };
 }
 
-function extractInlineData(part: any): { base64: string; mime: string } | null {
-  const data = part?.inline_data?.data || part?.inlineData?.data;
-  const mime = part?.inline_data?.mime_type || part?.inlineData?.mimeType;
+function extractInlineData(part: unknown): { base64: string; mime: string } | null {
+  const p = part as { inline_data?: { data?: unknown; mime_type?: unknown }; inlineData?: { data?: unknown; mimeType?: unknown } };
+  const data = p?.inline_data?.data ?? p?.inlineData?.data;
+  const mime = p?.inline_data?.mime_type ?? p?.inlineData?.mimeType;
   if (!data) return null;
   const b64 = normalizeBase64(stripBase64Header(String(data)));
   const outMime = (mime && String(mime).startsWith('image/')) ? String(mime) : detectMimeFromBase64(b64);
@@ -204,7 +205,7 @@ async function getBase64ImageSize(base64: string, mimeType?: string): Promise<{ 
     const h = loaded.naturalHeight || loaded.height;
     if (!w || !h) return null;
     return { width: w, height: h };
-  } catch (err) {
+  } catch {
     return null;
   }
 }
@@ -336,7 +337,6 @@ async function letterboxToFixedSize(base64: string, mimeType: string, targetW: n
   if (!cw || !ch) return base64;
 
   const currentRatio = cw / ch;
-  const targetRatio = targetW / targetH;
 
   const canvas = document.createElement('canvas');
   canvas.width = targetW;
@@ -376,7 +376,7 @@ async function whataiFetch(path: string, init: RequestInit): Promise<Response> {
   }
   const finalInit: RequestInit = { ...init, headers };
   let resp: Response | null = null;
-  let firstError: any = null;
+  let firstError: unknown = null;
   const primaryUrl = useDevProxy ? proxyUrl : directUrl;
   try {
     resp = await withRetry(() => fetch(primaryUrl, finalInit), { retries: 3, baseDelayMs: 800 });
@@ -403,7 +403,7 @@ async function whataiFetch(path: string, init: RequestInit): Promise<Response> {
 }
 
 // 统一的 OpenAI 格式聊天完成 API
-async function whataiChatCompletions(body: any): Promise<any> {
+async function whataiChatCompletions(body: unknown): Promise<ChatCompletionResponse> {
   const resp = await whataiFetch('/v1/chat/completions', {
     method: 'POST',
     body: JSON.stringify(body),
@@ -418,82 +418,25 @@ async function whataiChatCompletions(body: any): Promise<any> {
   return await resp.json();
 }
 
-// 统一的 OpenAI 格式图像生成 API
-async function whataiImageGeneration(body: any): Promise<any> {
-  const resp = await whataiFetch('/v1/images/generations', {
-    method: 'POST',
-    body: JSON.stringify(body),
-  });
-  
-  const contentType = resp.headers.get('content-type') || '';
-  if (!contentType.includes('application/json')) {
-    const text = await resp.text();
-    throw new Error(`whatai returned non-JSON (${contentType}): ${text.substring(0, 200)}`);
-  }
-  
-  return await resp.json();
-}
-
-// 统一的 OpenAI 格式图像编辑 API
-async function whataiImageEdit(body: any): Promise<any> {
-  // 构建 FormData 用于图像编辑
-  const formData = new FormData();
-  
-  // 添加必需的字段
-  formData.append('model', body.model);
-  formData.append('prompt', body.prompt);
-  if (body.aspect_ratio) formData.append('aspect_ratio', body.aspect_ratio);
-  // 可选固定尺寸（如提供）
-  if (body.size) formData.append('size', body.size);
-  
-  // 将 base64 图像转换为 Blob 并添加到 FormData
-  if (body.image) {
-    const imageBlob = dataUrlToBlob(`data:image/png;base64,${body.image}`);
-    formData.append('image', imageBlob, 'image.png');
-  }
-  
-  // 如果有遮罩，也添加到 FormData
-  if (body.mask) {
-    const maskBlob = dataUrlToBlob(`data:image/png;base64,${body.mask}`);
-    formData.append('mask', maskBlob, 'mask.png');
-  }
-  
-  try {
-    const resp = await whataiFetch('/v1/images/edits', {
-      method: 'POST',
-      body: formData,
-    });
-    const contentType = resp.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
-      const text = await resp.text();
-      throw new Error(`whatai returned non-JSON (${contentType}): ${text.substring(0, 200)}`);
-    }
-    return await resp.json();
-  } catch (err) {
-    const jsonBody: any = {
-      model: body.model,
-      prompt: body.prompt,
-    };
-    if (body.aspect_ratio) jsonBody.aspect_ratio = body.aspect_ratio;
-    if (body.size) jsonBody.size = body.size;
-    if (body.image) jsonBody.image = body.image;
-    if (body.mask) jsonBody.mask = body.mask;
-    const resp2 = await whataiFetch('/v1/images/edits', {
-      method: 'POST',
-      body: JSON.stringify(jsonBody),
-    });
-    const ct2 = resp2.headers.get('content-type') || '';
-    if (!ct2.includes('application/json')) {
-      const text2 = await resp2.text();
-      throw new Error(`whatai returned non-JSON (${ct2}): ${text2.substring(0, 200)}`);
-    }
-    return await resp2.json();
-  }
-}
 
 type ImageInput = {
   href: string;
   mimeType: string;
+};
+
+type ChatContentPart = { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } };
+interface ChatMessage {
+  content: string | Array<{ type?: string; image_url?: { url?: string }; inlineData?: { data?: string }; b64_json?: string }>;
+}
+interface ChatCompletionResponse {
+  choices?: Array<{ message?: ChatMessage }>;
+}
+type VideoGenBody = {
+  model: string;
+  prompt: string;
+  aspect_ratio: '16:9' | '9:16';
+  duration: number;
+  image?: string;
 };
 
 // 文本生成图像
@@ -512,7 +455,7 @@ export async function generateImageFromText(prompt: string, model?: string, opts
 
   try {
     const usedModel = model || WHATAI_IMAGE_GENERATION_MODEL;
-    const content: any[] = [];
+    const content: ChatContentPart[] = [];
     const outputInstr = '只输出一行 data:image/png;base64,<...> 不要输出其它文字';
     const textPayload = opts?.aspectRatio ? `${prompt}\n[aspect_ratio:${opts.aspectRatio}]\n${outputInstr}` : `${prompt}\n${outputInstr}`;
     content.push({ type: "text", text: textPayload });
@@ -660,7 +603,7 @@ export async function editImage(
     const targetH = baseSize?.height;
 
     const usedModel = mask ? WHATAI_IMAGE_EDIT_MODEL : WHATAI_IMAGE_GENERATION_MODEL;
-    const parts: any[] = [];
+    const parts: ChatContentPart[] = [];
     const arText = aspectRatioFromImage ? `[aspect_ratio:${aspectRatioFromImage}]` : '';
     const sizeText = targetW && targetH ? `[size:${targetW}x${targetH}]` : '';
     const outputInstr = '只输出一行 data:image/png;base64,<...> 不要输出其它文字';
@@ -687,7 +630,7 @@ export async function editImage(
       try {
         let kind = 'unknown';
         let hint: string | undefined = undefined;
-        const mc0: any = msg.content;
+        const mc0: unknown = msg.content;
         if (typeof mc0 === 'string') {
           kind = 'string';
           hint = mc0.slice(0, 80);
@@ -703,7 +646,7 @@ export async function editImage(
           }
         }
         console.log('[editImage] chat content preview', { kind, hint });
-      } catch {}
+      } catch { void 0; }
       const mc = msg.content;
       if (typeof mc === 'string') {
         const s = mc as string;
@@ -719,17 +662,17 @@ export async function editImage(
                 if (WHATAI_STRICT_SIZE) {
                   return { newImageBase64: null, newImageMimeType: null, textResponse: `图像编辑失败：服务端未按尺寸输出（期望 ${targetW}x${targetH}）` };
                 } else {
-                  try { b64 = await letterboxToFixedSize(b64, mime, targetW, targetH); } catch {}
+                  try { b64 = await letterboxToFixedSize(b64, mime, targetW, targetH); } catch { void 0; }
                 }
               }
-            } catch {}
+            } catch { void 0; }
           } else if (aspectRatioFromImage) {
             try {
               const outAr = await computeAspectRatioFromBase64(b64, mime);
               if (outAr && outAr !== aspectRatioFromImage) {
-                try { b64 = await letterboxToAspectRatio(b64, mime, aspectRatioFromImage); } catch {}
+                try { b64 = await letterboxToAspectRatio(b64, mime, aspectRatioFromImage); } catch { void 0; }
               }
-            } catch {}
+            } catch { void 0; }
           }
           return { newImageBase64: b64, newImageMimeType: mime, textResponse: `使用 ${usedModel} 模型成功编辑图像` };
         }
@@ -751,17 +694,17 @@ export async function editImage(
                       resolve({ newImageBase64: null, newImageMimeType: null, textResponse: `图像编辑失败：服务端未按尺寸输出（期望 ${targetW}x${targetH}）` });
                       return;
                     } else {
-                      try { base64 = await letterboxToFixedSize(base64, mime, targetW, targetH); } catch {}
+                      try { base64 = await letterboxToFixedSize(base64, mime, targetW, targetH); } catch { void 0; }
                     }
                   }
-                } catch {}
+                } catch { void 0; }
               } else if (aspectRatioFromImage) {
                 try {
                   const outAr = await computeAspectRatioFromBase64(base64, mime);
                   if (outAr && outAr !== aspectRatioFromImage) {
-                    try { base64 = await letterboxToAspectRatio(base64, mime, aspectRatioFromImage); } catch {}
+                    try { base64 = await letterboxToAspectRatio(base64, mime, aspectRatioFromImage); } catch { void 0; }
                   }
-                } catch {}
+                } catch { void 0; }
               }
               resolve({ newImageBase64: base64, newImageMimeType: mime, textResponse: `使用 ${usedModel} 模型成功编辑图像` });
             };
@@ -827,7 +770,7 @@ export async function generateVideo(
   try {
     onProgress("正在使用 whatai 统一 API 生成视频...");
 
-    const body: any = {
+    const body: VideoGenBody = {
       model: WHATAI_VIDEO_MODEL,
       prompt: prompt,
       aspect_ratio: aspectRatio,
@@ -894,6 +837,8 @@ export async function generateVideo(
 }
 
 // 文本生成（聊天完成）
+type SimpleMessage = { role: 'system' | 'user'; content: string };
+
 export async function generateText(
   prompt: string,
   systemPrompt?: string
@@ -903,7 +848,7 @@ export async function generateText(
   }
 
   try {
-    const messages: any[] = [];
+    const messages: SimpleMessage[] = [];
     
     if (systemPrompt) {
       messages.push({ role: "system", content: systemPrompt });

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 
 interface BananaSidebarProps {
-  t: (key: string, ...args: any[]) => any;
+  t: (key: string, ...args: unknown[]) => unknown;
   setPrompt: (prompt: string) => void;
   onGenerate: () => void;
   disabled?: boolean;
@@ -10,7 +10,7 @@ interface BananaSidebarProps {
 }
 
 // Base URL helper to support dev ("/") and electron build ("./")
-const BASE_URL = (import.meta as any)?.env?.BASE_URL || '/';
+const BASE_URL = ((import.meta as unknown as { env?: { BASE_URL?: string } })?.env?.BASE_URL) || '/';
 const withBase = (p: string) => {
   const normalized = p.startsWith('/') ? p.slice(1) : p;
   return `${BASE_URL}${normalized}`;
@@ -118,6 +118,7 @@ export const BananaSidebar: React.FC<BananaSidebarProps> = ({ t, setPrompt, onGe
   const [isOpen, setIsOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const builtInPrompts = t('bananaCards') as { name: string; value: string }[];
+  void onGenerate;
 
   useEffect(() => {
     const onClickOutside = (e: MouseEvent) => {

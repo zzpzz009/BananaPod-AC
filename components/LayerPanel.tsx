@@ -1,7 +1,7 @@
 
 
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import type { Element } from '../types';
 
 interface LayerPanelProps {
@@ -74,9 +74,7 @@ const LayerItem: React.FC<{
     const [name, setName] = useState(element.name || element.type);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    useEffect(() => {
-        setName(element.name || element.type);
-    }, [element.name, element.type]);
+    // 移除在 effect 中同步 setState 的模式；当进入编辑态时再从 props 同步
 
     useEffect(() => {
         if (isEditing && inputRef.current) {
@@ -104,7 +102,7 @@ const LayerItem: React.FC<{
             draggable
             {...dragProps}
             onClick={onSelect}
-            onDoubleClick={() => setIsEditing(true)}
+            onDoubleClick={() => { setName(element.name || element.type); setIsEditing(true); }}
             className={`flex items-center space-x-2 p-1.5 rounded-md cursor-pointer text-sm transition-colors group ${
                 isSelected ? 'bg-blue-500/30' : 'hover:bg-white/10'
             } ${element.isVisible === false ? 'opacity-50' : ''}`}
@@ -153,7 +151,6 @@ const LayerItem: React.FC<{
 
 export const LayerPanel: React.FC<LayerPanelProps> = ({ isOpen, onClose, elements, selectedElementIds, onSelectElement, onToggleVisibility, onToggleLock, onRenameElement, onReorder, onMergeLayers }) => {
     const panelRef = useRef<HTMLDivElement>(null);
-    const [dragOverId, setDragOverId] = useState<string | null>(null);
 
     const handleDragStart = (e: React.DragEvent<HTMLDivElement>, id: string) => {
         e.dataTransfer.setData('text/plain', id);
@@ -163,14 +160,11 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({ isOpen, onClose, element
     const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
         const target = e.currentTarget;
-        const id = target.getAttribute('data-id');
-        setDragOverId(id);
         target.style.background = 'rgba(255,255,255,0.2)';
     };
     
     const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
         e.currentTarget.style.background = '';
-        setDragOverId(null);
     };
 
     const handleDrop = (e: React.DragEvent<HTMLDivElement>, targetId: string) => {
@@ -187,38 +181,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({ isOpen, onClose, element
         }
     };
     
-    const elementMap = useMemo(() => new Map(elements.map(el => [el.id, el])), [elements]);
-    const rootElements = useMemo(() => elements.filter(el => !el.parentId), [elements]);
-
-    const renderLayers = (elementIds: string[], level: number) => {
-        return elementIds.map(id => {
-            const element = elementMap.get(id);
-            if (!element) return null;
-
-            const childrenIds = elements.filter(el => el.parentId === id).map(el => el.id);
-
-            return (
-                <React.Fragment key={id}>
-                    <div data-id={id} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={(e) => handleDrop(e, id)}>
-                        <LayerItem
-                            element={element}
-                            level={level}
-                            isSelected={selectedElementIds.includes(id)}
-                            onSelect={() => onSelectElement(id)}
-                            onToggleLock={() => onToggleLock(id)}
-                            onToggleVisibility={() => onToggleVisibility(id)}
-                            onRename={name => onRenameElement(id, name)}
-                            onDragStart={e => handleDragStart(e, id)}
-                            onDragOver={handleDragOver}
-                            onDragLeave={handleDragLeave}
-                            onDrop={(e) => handleDrop(e, id)}
-                        />
-                    </div>
-                    {childrenIds.length > 0 && renderLayers(childrenIds, level + 1)}
-                </React.Fragment>
-            );
-        });
-    };
+    
 
     // Render elements in their actual array order for Z-index representation
     const renderOrderedLayers = (elements: Element[], level: number = 0, parentId?: string) => {

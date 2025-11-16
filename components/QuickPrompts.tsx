@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import type { UserEffect } from '../types';
 
 interface QuickPromptsProps {
-    t: (key: string, ...args: any[]) => any;
+    t: (key: string, ...args: unknown[]) => unknown;
     setPrompt: (prompt: string) => void;
     disabled: boolean;
     userEffects: UserEffect[];

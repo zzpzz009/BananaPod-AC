@@ -30,9 +30,7 @@ const BoardItem: React.FC<{
     const inputRef = useRef<HTMLInputElement>(null);
     const menuRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-        setName(board.name);
-    }, [board.name]);
+    // 移除在 effect 中同步 setState 的模式；当进入编辑态时再从 props 同步
 
     useEffect(() => {
         if (isEditing && inputRef.current) {
@@ -64,6 +62,7 @@ const BoardItem: React.FC<{
         setMenuOpen(false);
         switch (action) {
             case 'rename':
+                setName(board.name);
                 setIsEditing(true);
                 break;
             case 'duplicate':
@@ -98,7 +97,12 @@ const BoardItem: React.FC<{
                         onClick={e => e.stopPropagation()}
                     />
                 ) : (
-                    <span className="text-sm truncate" onDoubleClick={() => setIsEditing(true)}>{board.name}</span>
+                    <span
+                        className="text-sm truncate"
+                        onDoubleClick={() => { setName(board.name); setIsEditing(true); }}
+                    >
+                        {board.name}
+                    </span>
                 )}
                
                 <div className="relative" ref={menuRef}>

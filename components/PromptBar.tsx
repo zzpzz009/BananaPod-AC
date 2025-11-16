@@ -4,7 +4,7 @@ import { QuickPrompts } from './QuickPrompts';
 import type { UserEffect, GenerationMode } from '../types';
 
 interface PromptBarProps {
-    t: (key: string, ...args: any[]) => string;
+    t: (key: string, ...args: unknown[]) => string;
     prompt: string;
     setPrompt: (prompt: string) => void;
     onGenerate: () => void;
@@ -81,8 +81,8 @@ export const PromptBar: React.FC<PromptBarProps> = ({
     return (
         <div ref={containerRef} className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 w-full sm:max-w-full md:max-w-2xl lg:max-w-3xl px-4">
             <div 
-                style={{ ...containerStyle, ['--pod-ring-width' as any]: '1px' }}
- className="flex items-center gap-2 p-2 pod-toolbar pod-elevated-outline pod-bar-soft-gradient pod-inner-gradient-ring flex-wrap md:flex-nowrap"
+                style={{ ...containerStyle, ['--pod-ring-width' as unknown as string]: '1px' }}
+                className="flex items-center gap-2 p-2 pod-toolbar pod-elevated-outline pod-bar-soft-gradient pod-inner-gradient-ring flex-wrap md:flex-nowrap"
             >
                 {/* Left area previously hosting BananaSidebar; now empty to keep layout tight */}
                  <div className="flex-shrink-0 flex items-center rounded-full p-1">
