@@ -17,6 +17,8 @@ interface CanvasSettingsProps {
     wheelAction: WheelAction;
     setWheelAction: (action: WheelAction) => void;
     t: (key: string) => string;
+    apiKey: string;
+    setApiKey: (key: string) => void;
     
 }
 
@@ -33,7 +35,9 @@ export const CanvasSettings: React.FC<CanvasSettingsProps> = ({
     setButtonTheme,
     wheelAction,
     setWheelAction,
-    t
+    t,
+    apiKey,
+    setApiKey
 }) => {
     if (!isOpen) return null;
 
@@ -53,6 +57,25 @@ export const CanvasSettings: React.FC<CanvasSettingsProps> = ({
                     </button>
                 </div>
                 <div className="-mx-6" style={{ borderTop: '1px solid var(--border-color)' }}></div>
+
+                <div className="space-y-2">
+                    <label className="text-sm" style={{ color: 'var(--text-heading)', fontWeight: 500 }}>{t('settings.apiKey')}</label>
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="password"
+                            value={apiKey}
+                            onChange={(e) => setApiKey(e.target.value)}
+                            placeholder={t('settings.apiKeyPlaceholder')}
+                            className="flex-1 p-2 rounded-md border bg-gray-50"
+                        />
+                        <button
+                            onClick={onClose}
+                            className="pod-primary-button"
+                        >
+                            {t('settings.apiKeySave')}
+                        </button>
+                    </div>
+                </div>
 
                 {/* Language Settings */}
                 <div className="space-y-2">

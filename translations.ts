@@ -150,6 +150,9 @@ export const translations = {
         mouseWheel: 'Mouse Wheel',
         zoom: 'Zoom',
         scroll: 'Scroll',
+        apiKey: 'API Key',
+        apiKeyPlaceholder: 'Enter whatai token',
+        apiKeySave: 'Save',
     },
     contextMenu: {
         copy: 'Copy',
@@ -250,6 +253,9 @@ export const translations = {
         mouseWheel: '鼠标滚轮',
         zoom: '缩放',
         scroll: '滚动',
+        apiKey: 'API 密钥',
+        apiKeyPlaceholder: '输入 whatai 令牌',
+        apiKeySave: '保存',
     },
     contextMenu: {
         copy: '复制',

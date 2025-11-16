@@ -24,3 +24,40 @@
 - 透明度与不透明度：界面以 0–100 输入更直观，渲染与导出时需转换为 0–1（浮点），统一在 `<image>` 与 SVG 字符串中写入。
 - 保兼容旧字段：替换工具栏功能时，保留既有 `borderRadius` 的渲染逻辑，避免破坏历史内容。
 - 预览强校验：涉及视觉改动必须先启动本地服务器并打开预览页面验证实际效果与错误日志。
+
+## v0.7.0 改动摘要（生图链路）
+- 统一图片模型配置：新增 `WHATAI_IMAGE_MODEL`，生成与编辑共用同一模型值；读取优先级为 `localStorage > process.env > 默认`，默认设为 `gemini-2.5-flash-image`。
+- 切换调用协议：图像“生成/编辑”改为使用 Chat(completions) `{ model, messages }`，不再依赖 `\v1\images\*` 端点，以便统一日志与链路。
+- 强化输出约束：在文本指令中添加“只输出一行 `data:image/png;base64,<...>`，不要输出其它文字”，提高模型返回可解析图片的稳定性。
+- Base64 归一化：统一对输入/输出进行去头、去空白、`-/_`→`+/` 转换与 `=` 补齐，避免 `atob` 报错与 `ERR_INVALID_URL`。
+- 图片加载器优化：前端加载改为“Blob → ObjectURL”为主、`data:` 为辅；移除对 `data:` 的 `fetch`，绕开扩展拦截与跨域异常。
+- 尺寸/比例解析稳健化：
+  - 优先使用浏览器 `Image` 解析；失败时退回二进制解析（PNG/JPEG/GIF/WebP）提取宽高，不依赖图像解码。
+  - 一致性处理：严格模式下尺寸不匹配直接报错；非严格模式进行信封式补齐（`letterboxToFixedSize/AspectRatio`）。
+- 日志增强：
+  - 请求侧输出 `[editImage] 路径: chat/completions(修改图片) { model, partsCount }` 与内容预览（`preview` 截断显示 `data:image/...` 或 `http...`）。
+  - 返回侧输出 `kind/hint`，帮助定位模型是否返回了图片数据（`inlineData.data/b64_json/image_url.url`）。
+
+## API 调取生图相关经验（gemini-2.5-flash-image）
+- 调用协议选择：
+  - 推荐使用 Chat(completions) 并在 `messages[0].content` 里同时传 `text` + `image_url(data:image/...;base64,...)`；文本中加入输出约束，避免文字描述干扰解析。
+- 模型配置与覆写：
+  - 一处生效：`localStorage.setItem('WHATAI_IMAGE_MODEL','gemini-2.5-flash-image')`，统一生成与编辑模型。
+  - 兼容旧键：若存在 `WHATAI_IMAGE_GENERATION_MODEL/WHATAI_IMAGE_EDIT_MODEL`，优先从 `WHATAI_IMAGE_MODEL` 回退覆盖。
+- 比例与尺寸：
+  - 视口比例映射到常用集合（`16:9/9:16/4:3/3:2/...`），减少模型回退到 `1:1`。
+  - 编辑链路：若提供遮罩，追加 `[mask:provided]`，并将首图尺寸作为目标尺寸以确保输出一致。
+- 返回数据解析：
+  - 优先解析 `data:image/...;base64,...`；否则解析 `inlineData.data`；再次尝试 `image_url.url`（`http` 链接时拉取为 Blob 再转 Base64）。
+  - 仅对匹配到的 Base64片段归一化与解码，避免混入 Markdown 标记或尾随字符。
+- 浏览器环境注意：
+  - 扩展会拦截 `fetch` 或消息通道，导致“message channel closed”；使用隐身模式或禁用扩展进行验证。
+  - 避免对 `data:` 执行 `fetch`；统一走 Blob → ObjectURL 或直接设置 `data:` URL。
+- 调试建议：
+  - 保留链路日志（模型名、分片数量、预览截断、返回内容 hint）；一旦出现“未找到输出”，先检查模型是否遵循输出约束、是否返回了图片数据。
+  - 使用 `runSizeProbe()` 进行本地尺寸解析自检：应返回 `{ png: { width: 1, height: 1 } }`。
+
+## 常见问题与处理
+- 仅返回文字：加强输出约束，提示“只输出 data:image/png;base64”，并减少说明性文本。
+- `InvalidCharacterError/ERR_INVALID_URL`：检查是否未做 Base64 归一化或混入非 Base64字符；统一走归一化与 Blob 加载。
+- 非图像响应：对 `http` 返回先校验 `content-type`，非 `image/*` 直接提示并中止尺寸解析。

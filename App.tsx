@@ -504,7 +504,20 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
     const [editingElement, setEditingElement] = useState<{ id: string; text: string; } | null>(null);
     const [lassoPath, setLassoPath] = useState<Point[] | null>(null);
 
-    const [language, setLanguage] = useState<'en' | 'zho'>('en');
+    const [language, setLanguage] = useState<'en' | 'zho'>('zho');
+    const [apiKey, setApiKey] = useState<string>(() => {
+        try {
+            return localStorage.getItem('WHATAI_API_KEY') || '';
+        } catch {
+            return '';
+        }
+    });
+    useEffect(() => {
+        try {
+            if (apiKey) localStorage.setItem('WHATAI_API_KEY', apiKey);
+            else localStorage.removeItem('WHATAI_API_KEY');
+        } catch {}
+    }, [apiKey]);
     const [uiTheme, setUiTheme] = useState({ color: '#171717', opacity: 0.7 });
     const [buttonTheme, setButtonTheme] = useState({ color: '#374151', opacity: 0.8 });
     
@@ -1675,26 +1688,23 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
                     if (result.newImageBase64 && result.newImageMimeType) {
                         const { newImageBase64, newImageMimeType } = result;
 
-                        const img = new Image();
-                        img.onload = () => {
-                            const maskPathIds = new Set(maskPaths.map(p => p.id));
-                            commitAction(prev => 
-                                prev.map(el => {
-                                    if (el.id === baseImage.id && el.type === 'image') {
-                                        return {
-                                            ...el,
-                                            href: `data:${newImageMimeType};base64,${newImageBase64}`,
-                                            width: img.width,
-                                            height: img.height,
-                                        };
-                                    }
-                                    return el;
-                                }).filter(el => !maskPathIds.has(el.id))
-                            );
-                            setSelectedElementIds([baseImage.id]);
-                        };
-                        img.onerror = () => setError('Failed to load the generated image.');
-                        img.src = `data:${newImageMimeType};base64,${newImageBase64}`;
+                    loadImageWithFallback(newImageBase64, newImageMimeType).then(({ img, href }) => {
+                        const maskPathIds = new Set(maskPaths.map(p => p.id));
+                        commitAction(prev => 
+                            prev.map(el => {
+                                if (el.id === baseImage.id && el.type === 'image') {
+                                    return {
+                                        ...el,
+                                        href,
+                                        width: img.width,
+                                        height: img.height,
+                                    };
+                                }
+                                return el;
+                            }).filter(el => !maskPathIds.has(el.id))
+                        );
+                        setSelectedElementIds([baseImage.id]);
+                    }).catch(() => setError('Failed to load the generated image.'));
 
                     } else {
                         setError(result.textResponse || 'Inpainting failed to produce an image.');
@@ -1714,8 +1724,7 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
                 if (result.newImageBase64 && result.newImageMimeType) {
                     const { newImageBase64, newImageMimeType } = result;
                     
-                    const img = new Image();
-                    img.onload = () => {
+                    loadImageWithFallback(newImageBase64, newImageMimeType).then(({ img, href }) => {
                         let minX = Infinity, minY = Infinity, maxX = -Infinity;
                         selectedElements.forEach(el => {
                             const bounds = getElementBounds(el);
@@ -1729,26 +1738,46 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
                         const newImage: ImageElement = {
                             id: generateId(), type: 'image', x, y, name: 'Generated Image',
                             width: img.width, height: img.height,
-                            href: `data:${newImageMimeType};base64,${newImageBase64}`, mimeType: newImageMimeType,
+                            href, mimeType: newImageMimeType,
                         };
                         commitAction(prev => [...prev, newImage]);
                         setSelectedElementIds([newImage.id]);
-                    };
-                    img.onerror = () => setError('Failed to load the generated image.');
-                    img.src = `data:${newImageMimeType};base64,${newImageBase64}`;
+                    }).catch(() => setError('Failed to load the generated image.'));
                 } else {
                     setError(result.textResponse || 'Generation failed to produce an image.');
                 }
 
             } else {
                 // Generate from scratch
-                const result = await generateImageFromText(prompt);
+                let aspectRatio: string | undefined = undefined;
+                if (svgRef.current) {
+                    const b = svgRef.current.getBoundingClientRect();
+                    const w = Math.max(1, Math.floor(b.width));
+                    const h = Math.max(1, Math.floor(b.height));
+                    const r = w / h;
+                    const list = [
+                        { ar: '1:1', v: 1 },
+                        { ar: '16:9', v: 16/9 },
+                        { ar: '4:3', v: 4/3 },
+                        { ar: '3:2', v: 3/2 },
+                        { ar: '2:3', v: 2/3 },
+                        { ar: '3:4', v: 3/4 },
+                        { ar: '9:16', v: 9/16 },
+                    ];
+                    let best = list[0];
+                    let bestDiff = Math.abs(r - best.v);
+                    for (let i = 1; i < list.length; i++) {
+                        const d = Math.abs(r - list[i].v);
+                        if (d < bestDiff) { best = list[i]; bestDiff = d; }
+                    }
+                    aspectRatio = best.ar;
+                }
+                const result = await generateImageFromText(prompt, undefined, aspectRatio ? { aspectRatio } : undefined);
 
                 if (result.newImageBase64 && result.newImageMimeType) {
                     const { newImageBase64, newImageMimeType } = result;
                     
-                    const img = new Image();
-                    img.onload = () => {
+                    loadImageWithFallback(newImageBase64, newImageMimeType).then(({ img, href }) => {
                         if (!svgRef.current) return;
                         const svgBounds = svgRef.current.getBoundingClientRect();
                         const screenCenter = { x: svgBounds.left + svgBounds.width / 2, y: svgBounds.top + svgBounds.height / 2 };
@@ -1759,13 +1788,11 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
                         const newImage: ImageElement = {
                             id: generateId(), type: 'image', x, y, name: 'Generated Image',
                             width: img.width, height: img.height,
-                            href: `data:${newImageMimeType};base64,${newImageBase64}`, mimeType: newImageMimeType,
+                            href, mimeType: newImageMimeType,
                         };
                         commitAction(prev => [...prev, newImage]);
                         setSelectedElementIds([newImage.id]);
-                    };
-                    img.onerror = () => setError('Failed to load the generated image.');
-                    img.src = `data:${newImageMimeType};base64,${newImageBase64}`;
+                    }).catch(() => setError('Failed to load the generated image.'));
                 } else { 
                     setError(result.textResponse || 'Generation failed to produce an image.'); 
                 }
@@ -2156,6 +2183,8 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
                 wheelAction={wheelAction}
                 setWheelAction={setWheelAction}
                 t={t}
+                apiKey={apiKey}
+                setApiKey={setApiKey}
             />
             <Toolbar
                 t={t}
@@ -2645,3 +2674,39 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
 };
 
 export default App;
+    const loadImageWithFallback = (b64: string, mime: string): Promise<{ img: HTMLImageElement; href: string }> => {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            const sanitize = (input: string) => {
+                const raw = input.includes('base64,') ? input.split('base64,')[1] : input.replace(/^data:.*?;base64,?/i, '');
+                let s = raw.replace(/\s/g, '').replace(/-/g, '+').replace(/_/g, '/');
+                const pad = s.length % 4;
+                if (pad === 2) s += '==';
+                else if (pad === 3) s += '=';
+                else if (pad !== 0) { while (s.length % 4 !== 0) s += '='; }
+                return s;
+            };
+            const safeB64 = sanitize(b64);
+            const safeMime = mime && mime.startsWith('image/') ? mime : 'image/png';
+            try {
+                const binary = atob(safeB64);
+                const bytes = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+                const blob = new Blob([bytes], { type: safeMime });
+                const objUrl = URL.createObjectURL(blob);
+                img.onload = () => resolve({ img, href: objUrl });
+                img.onerror = () => {
+                    const dataUrl = `data:${safeMime};base64,${safeB64}`;
+                    img.onload = () => resolve({ img, href: dataUrl });
+                    img.onerror = () => reject(new Error('Failed to load generated image'));
+                    img.src = dataUrl;
+                };
+                img.src = objUrl;
+            } catch (e) {
+                const dataUrl = `data:${safeMime};base64,${safeB64}`;
+                img.onload = () => resolve({ img, href: dataUrl });
+                img.onerror = () => reject(e instanceof Error ? e : new Error(String(e)));
+                img.src = dataUrl;
+            }
+        });
+    };

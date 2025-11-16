@@ -34,8 +34,9 @@ export default defineConfig(({ mode }) => {
         'process.env.WHATAI_BASE_URL': JSON.stringify(env.WHATAI_BASE_URL || 'https://api.whatai.cc'),
         'process.env.WHATAI_API_KEY': JSON.stringify(env.WHATAI_API_KEY),
         'process.env.WHATAI_TEXT_MODEL': JSON.stringify(env.WHATAI_TEXT_MODEL || 'gemini-2.0-flash-exp'),
-        'process.env.WHATAI_IMAGE_GENERATION_MODEL': JSON.stringify(env.WHATAI_IMAGE_GENERATION_MODEL || 'qwen-image'),
-        'process.env.WHATAI_IMAGE_EDIT_MODEL': JSON.stringify(env.WHATAI_IMAGE_EDIT_MODEL || 'gemini-2.5-flash-image'),
+        'process.env.WHATAI_IMAGE_MODEL': JSON.stringify(env.WHATAI_IMAGE_MODEL || 'gemini-2.5-flash-image'),
+        'process.env.WHATAI_IMAGE_GENERATION_MODEL': JSON.stringify(env.WHATAI_IMAGE_GENERATION_MODEL || env.WHATAI_IMAGE_MODEL || 'gemini-2.5-flash-image'),
+        'process.env.WHATAI_IMAGE_EDIT_MODEL': JSON.stringify(env.WHATAI_IMAGE_EDIT_MODEL || env.WHATAI_IMAGE_MODEL || 'gemini-2.5-flash-image'),
         'process.env.WHATAI_VIDEO_MODEL': JSON.stringify(env.WHATAI_VIDEO_MODEL || 'vidu-1'),
         'process.env.PROXY_VIA_VITE': JSON.stringify(isElectron ? 'false' : (env.PROXY_VIA_VITE || 'true'))
       },

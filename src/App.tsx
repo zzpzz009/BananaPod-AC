@@ -74,6 +74,43 @@ const isPointInPolygon = (point: Point, polygon: Point[]): boolean => {
     return isInside;
 };
 
+const loadImageWithFallback = (b64: string, mime: string): Promise<{ img: HTMLImageElement; href: string }> => {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        const sanitize = (input: string) => {
+            const raw = input.includes('base64,') ? input.split('base64,')[1] : input.replace(/^data:.*?;base64,?/i, '');
+            let s = raw.replace(/\s/g, '').replace(/-/g, '+').replace(/_/g, '/');
+            const pad = s.length % 4;
+            if (pad === 2) s += '==';
+            else if (pad === 3) s += '=';
+            else if (pad !== 0) { while (s.length % 4 !== 0) s += '='; }
+            return s;
+        };
+        const safeB64 = sanitize(b64);
+        const safeMime = mime && mime.startsWith('image/') ? mime : 'image/png';
+        try {
+            const binary = atob(safeB64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            const blob = new Blob([bytes], { type: safeMime });
+            const objUrl = URL.createObjectURL(blob);
+            img.onload = () => resolve({ img, href: objUrl });
+            img.onerror = () => {
+                const dataUrl = `data:${safeMime};base64,${safeB64}`;
+                img.onload = () => resolve({ img, href: dataUrl });
+                img.onerror = () => reject(new Error('Failed to load generated image'));
+                img.src = dataUrl;
+            };
+            img.src = objUrl;
+        } catch (e) {
+            const dataUrl = `data:${safeMime};base64,${safeB64}`;
+            img.onload = () => resolve({ img, href: dataUrl });
+            img.onerror = () => reject(e instanceof Error ? e : new Error(String(e)));
+            img.src = dataUrl;
+        }
+    });
+};
+
 // FIX: Updated function signature to exclude VideoElement and added a case for 'group' to make the switch exhaustive, preventing 'never' type errors.
 const rasterizeElement = (element: Exclude<Element, ImageElement | VideoElement>): Promise<{ href: string; mimeType: 'image/png' }> => {
     return new Promise((resolve, reject) => {
@@ -1295,9 +1332,10 @@ const App: React.FC = () => {
                 const selectedElements = elements.filter(el => selectedElementIds.includes(el.id));
                 const imageElements = selectedElements.filter(el => el.type === 'image') as ImageElement[];
                 const maskPaths = selectedElements.filter(el => el.type === 'path' && el.strokeOpacity && el.strokeOpacity < 1) as PathElement[];
+                const preferCombine = (typeof window !== 'undefined' ? (localStorage.getItem('PREFER_COMBINE_EDIT') || 'true') : 'true') !== 'false';
 
                 // Inpainting logic: selection is ONLY one image and one or more mask paths
-                if (imageElements.length === 1 && maskPaths.length > 0 && selectedElements.length === (1 + maskPaths.length)) {
+                if (!preferCombine && imageElements.length === 1 && maskPaths.length > 0 && selectedElements.length === (1 + maskPaths.length)) {
                     const baseImage = imageElements[0];
                     const maskData = await rasterizeMask(maskPaths, baseImage);
                     const result = await editImage(
@@ -1308,16 +1346,15 @@ const App: React.FC = () => {
                     
                     if (result.newImageBase64 && result.newImageMimeType) {
                         const { newImageBase64, newImageMimeType } = result;
-
-                        const img = new Image();
-                        img.onload = () => {
+                        try {
+                            const { img, href } = await loadImageWithFallback(newImageBase64, newImageMimeType);
                             const maskPathIds = new Set(maskPaths.map(p => p.id));
                             commitAction(prev => 
                                 prev.map(el => {
                                     if (el.id === baseImage.id && el.type === 'image') {
                                         return {
                                             ...el,
-                                            href: `data:${newImageMimeType};base64,${newImageBase64}`,
+                                            href,
                                             width: img.width,
                                             height: img.height,
                                         };
@@ -1326,9 +1363,9 @@ const App: React.FC = () => {
                                 }).filter(el => !maskPathIds.has(el.id))
                             );
                             setSelectedElementIds([baseImage.id]);
-                        };
-                        img.onerror = () => setError('Failed to load the generated image.');
-                        img.src = `data:${newImageMimeType};base64,${newImageBase64}`;
+                        } catch {
+                            setError('Failed to load the generated image.');
+                        }
 
                     } else {
                         setError(result.textResponse || 'Inpainting failed to produce an image.');
@@ -1347,9 +1384,8 @@ const App: React.FC = () => {
 
                 if (result.newImageBase64 && result.newImageMimeType) {
                     const { newImageBase64, newImageMimeType } = result;
-                    
-                    const img = new Image();
-                    img.onload = () => {
+                    try {
+                        const { img, href } = await loadImageWithFallback(newImageBase64, newImageMimeType);
                         let minX = Infinity, minY = Infinity, maxX = -Infinity;
                         selectedElements.forEach(el => {
                             const bounds = getElementBounds(el);
@@ -1359,24 +1395,46 @@ const App: React.FC = () => {
                         });
                         const x = maxX + 20;
                         const y = minY;
-                        
                         const newImage: ImageElement = {
                             id: generateId(), type: 'image', x, y, name: 'Generated Image',
                             width: img.width, height: img.height,
-                            href: `data:${newImageMimeType};base64,${newImageBase64}`, mimeType: newImageMimeType,
+                            href, mimeType: newImageMimeType,
                         };
                         commitAction(prev => [...prev, newImage]);
                         setSelectedElementIds([newImage.id]);
-                    };
-                    img.onerror = () => setError('Failed to load the generated image.');
-                    img.src = `data:${newImageMimeType};base64,${newImageBase64}`;
+                    } catch {
+                        setError('Failed to load the generated image.');
+                    }
                 } else {
                     setError(result.textResponse || 'Generation failed to produce an image.');
                 }
 
             } else {
                 // Generate from scratch
-                const result = await generateImageFromText(prompt);
+                let aspectRatio: string | undefined = undefined;
+                if (svgRef.current) {
+                    const b = svgRef.current.getBoundingClientRect();
+                    const w = Math.max(1, Math.floor(b.width));
+                    const h = Math.max(1, Math.floor(b.height));
+                    const r = w / h;
+                    const list = [
+                        { ar: '1:1', v: 1 },
+                        { ar: '16:9', v: 16/9 },
+                        { ar: '4:3', v: 4/3 },
+                        { ar: '3:2', v: 3/2 },
+                        { ar: '2:3', v: 2/3 },
+                        { ar: '3:4', v: 3/4 },
+                        { ar: '9:16', v: 9/16 },
+                    ];
+                    let best = list[0];
+                    let bestDiff = Math.abs(r - best.v);
+                    for (let i = 1; i < list.length; i++) {
+                        const d = Math.abs(r - list[i].v);
+                        if (d < bestDiff) { best = list[i]; bestDiff = d; }
+                    }
+                    aspectRatio = best.ar;
+                }
+                const result = await generateImageFromText(prompt, undefined, aspectRatio ? { aspectRatio } : undefined);
 
                 if (result.newImageBase64 && result.newImageMimeType) {
                     const { newImageBase64, newImageMimeType } = result;

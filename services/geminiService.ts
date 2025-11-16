@@ -5,15 +5,134 @@ const WHATAI_BASE_URL = process.env.WHATAI_BASE_URL || 'https://api.whatai.cc';
 const WHATAI_API_KEY = process.env.WHATAI_API_KEY;
 const WHATAI_TEXT_MODEL = process.env.WHATAI_TEXT_MODEL || 'gemini-2.0-flash-exp';
 // 图像生成切换至 Nano-banana（参考 f:\Trae\BananaPod\nanobanna.html）
-const WHATAI_IMAGE_GENERATION_MODEL = process.env.WHATAI_IMAGE_GENERATION_MODEL || 'nano-banana';
-// 图像编辑也切换至 Nano-banana
-const WHATAI_IMAGE_EDIT_MODEL = process.env.WHATAI_IMAGE_EDIT_MODEL || 'nano-banana';
+const WHATAI_IMAGE_MODEL = (
+  (typeof window !== 'undefined' ? (localStorage.getItem('WHATAI_IMAGE_MODEL') || undefined) : undefined) ||
+  process.env.WHATAI_IMAGE_MODEL ||
+  'gemini-2.5-flash-image'
+);
+const WHATAI_IMAGE_GENERATION_MODEL = WHATAI_IMAGE_MODEL;
+const WHATAI_IMAGE_EDIT_MODEL = WHATAI_IMAGE_MODEL;
 const WHATAI_VIDEO_MODEL = process.env.WHATAI_VIDEO_MODEL || 'vidu-1';
 const PROXY_VIA_VITE = (process.env.PROXY_VIA_VITE || 'true') === 'true';
 // 严格尺寸校验（true 时若服务端返回尺寸与首图不一致则报错）
 const WHATAI_STRICT_SIZE = (process.env.WHATAI_STRICT_SIZE || 'false') === 'true';
 
 const IS_BROWSER = typeof window !== 'undefined';
+function normalizeBase64(b64: string): string {
+  let s = b64.replace(/\s/g, '').replace(/-/g, '+').replace(/_/g, '/');
+  const pad = s.length % 4;
+  if (pad === 2) s += '==';
+  else if (pad === 3) s += '=';
+  else if (pad !== 0) {
+    while (s.length % 4 !== 0) s += '=';
+  }
+  return s;
+}
+function stripBase64Header(input: string): string {
+  const idx = input.indexOf('base64,');
+  if (idx >= 0) return input.substring(idx + 7);
+  return input.replace(/^data:.*?;base64,?/i, '');
+}
+function detectMimeFromBase64(b64: string): string {
+  try {
+    const bin = atob(b64.slice(0, 64));
+    if (bin.length >= 4) {
+      const sig = [bin.charCodeAt(0), bin.charCodeAt(1), bin.charCodeAt(2), bin.charCodeAt(3)];
+      if (sig[0] === 0x89 && sig[1] === 0x50 && sig[2] === 0x4e && sig[3] === 0x47) return 'image/png';
+      if (sig[0] === 0xff && sig[1] === 0xd8 && sig[2] === 0xff) return 'image/jpeg';
+      if (bin.startsWith('GIF8')) return 'image/gif';
+      if (bin.startsWith('RIFF')) return 'image/webp';
+    }
+  } catch {}
+  return 'image/png';
+}
+
+function extractDataUrlFromText(input: string): { base64: string; mime: string } | null {
+  const m = input.match(/data:(image\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=_-]+)/);
+  if (!m) return null;
+  const mime = m[1];
+  const raw = m[2];
+  const b64 = normalizeBase64(raw);
+  const outMime = mime.startsWith('image/') ? mime : detectMimeFromBase64(b64);
+  return { base64: b64, mime: outMime };
+}
+
+function extractInlineData(part: any): { base64: string; mime: string } | null {
+  const data = part?.inline_data?.data || part?.inlineData?.data;
+  const mime = part?.inline_data?.mime_type || part?.inlineData?.mimeType;
+  if (!data) return null;
+  const b64 = normalizeBase64(stripBase64Header(String(data)));
+  const outMime = (mime && String(mime).startsWith('image/')) ? String(mime) : detectMimeFromBase64(b64);
+  return { base64: b64, mime: outMime };
+}
+
+function decodeBase64ToBytes(b64: string): Uint8Array {
+  const bin = atob(b64);
+  const len = bin.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+function readUInt16BE(bytes: Uint8Array, offset: number): number {
+  return (bytes[offset] << 8) | bytes[offset + 1];
+}
+function readUInt32BE(bytes: Uint8Array, offset: number): number {
+  return ((bytes[offset] << 24) | (bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3]) >>> 0;
+}
+
+function getImageSizeFromBytes(bytes: Uint8Array): { width: number; height: number } | null {
+  if (bytes.length < 10) return null;
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47 && bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a) {
+    const width = readUInt32BE(bytes, 16);
+    const height = readUInt32BE(bytes, 20);
+    if (width && height) return { width, height };
+  }
+  if (bytes[0] === 0xff && bytes[1] === 0xd8) {
+    let i = 2;
+    while (i + 9 < bytes.length) {
+      if (bytes[i] !== 0xff) { i++; continue; }
+      const marker = bytes[i + 1];
+      const length = readUInt16BE(bytes, i + 2);
+      const isSOF = (marker >= 0xc0 && marker <= 0xc3) || (marker >= 0xc5 && marker <= 0xc7) || (marker >= 0xc9 && marker <= 0xcb) || (marker >= 0xcd && marker <= 0xcf);
+      if (isSOF) {
+        const height = readUInt16BE(bytes, i + 5);
+        const width = readUInt16BE(bytes, i + 7);
+        if (width && height) return { width, height };
+        break;
+      }
+      if (length < 2) break;
+      i += 2 + length;
+    }
+  }
+  if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x38) {
+    const width = bytes[6] | (bytes[7] << 8);
+    const height = bytes[8] | (bytes[9] << 8);
+    if (width && height) return { width, height };
+  }
+  if (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) {
+    let pos = 12;
+    while (pos + 8 <= bytes.length) {
+      const id0 = bytes[pos], id1 = bytes[pos + 1], id2 = bytes[pos + 2], id3 = bytes[pos + 3];
+      const chunkSize = readUInt32BE(bytes, pos + 4);
+      if (id0 === 0x56 && id1 === 0x50 && id2 === 0x38 && id3 === 0x58) {
+        const w = (bytes[pos + 8 + 4] | (bytes[pos + 8 + 5] << 8) | (bytes[pos + 8 + 6] << 16)) + 1;
+        const h = (bytes[pos + 8 + 7] | (bytes[pos + 8 + 8] << 8) | (bytes[pos + 8 + 9] << 16)) + 1;
+        if (w && h) return { width: w >>> 0, height: h >>> 0 };
+      }
+      pos += 8 + chunkSize + (chunkSize % 2);
+    }
+  }
+  return null;
+}
+
+async function getImageSize(base64: string, mimeType?: string): Promise<{ width: number; height: number } | null> {
+  const s = await getBase64ImageSize(base64, mimeType);
+  if (s) return s;
+  const b64 = normalizeBase64(stripBase64Header(base64));
+  const bytes = decodeBase64ToBytes(b64);
+  return getImageSizeFromBytes(bytes);
+}
 
 function isWhataiEnabled(): boolean {
   return Boolean(WHATAI_API_KEY || PROXY_VIA_VITE);
@@ -22,7 +141,7 @@ function isWhataiEnabled(): boolean {
 function dataUrlToBlob(dataUrl: string): Blob {
   const parts = dataUrl.split(",");
   const meta = parts[0];
-  const base64 = parts[1] ?? parts[0];
+  const base64 = normalizeBase64(parts[1] ?? parts[0]);
   const mimeMatch = /data:(.*?);base64/.exec(meta);
   const mimeType = mimeMatch ? mimeMatch[1] : "application/octet-stream";
   const binary = atob(base64);
@@ -36,12 +155,16 @@ function dataUrlToBlob(dataUrl: string): Blob {
 async function computeAspectRatioFromBase64(base64: string, mimeType?: string): Promise<string | null> {
   if (!IS_BROWSER) return null;
   try {
-    const url = `data:${mimeType || 'image/png'};base64,${base64}`;
+    const rawInAr = stripBase64Header(base64);
+    const normInAr = normalizeBase64(rawInAr);
+    const detectedAr = detectMimeFromBase64(normInAr);
+    const useMimeAr = (mimeType && mimeType.startsWith('image/')) ? mimeType : detectedAr;
+    const url = `data:${useMimeAr};base64,${normInAr}`;
     const img = new Image();
     img.crossOrigin = 'anonymous';
     const loaded = await new Promise<HTMLImageElement>((resolve, reject) => {
       img.onload = () => resolve(img);
-      img.onerror = (e) => reject(e);
+      img.onerror = () => reject(new Error('Failed to load base64 image for aspect ratio'));
       img.src = url;
     });
     let w = loaded.naturalWidth || loaded.width;
@@ -61,28 +184,34 @@ async function computeAspectRatioFromBase64(base64: string, mimeType?: string): 
 // 获取 base64 图片尺寸
 async function getBase64ImageSize(base64: string, mimeType?: string): Promise<{ width: number; height: number } | null> {
   if (!IS_BROWSER) return null;
-  try {
-    const url = `data:${mimeType || 'image/png'};base64,${base64}`;
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    const loaded = await new Promise<HTMLImageElement>((resolve, reject) => {
+  const raw = stripBase64Header(base64);
+  const b64 = normalizeBase64(raw);
+  const detected = detectMimeFromBase64(b64);
+  const useMime = (mimeType && mimeType.startsWith('image/')) ? mimeType : detected;
+  const dataUrl = `data:${useMime};base64,${b64}`;
+  const tryLoad = async (src: string): Promise<HTMLImageElement> => {
+    return await new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
       img.onload = () => resolve(img);
-      img.onerror = (e) => reject(e);
-      img.src = url;
+      img.onerror = () => reject(new Error('Failed to load base64 image for size'));
+      img.src = src;
     });
+  };
+  try {
+    const loaded = await tryLoad(dataUrl);
     const w = loaded.naturalWidth || loaded.width;
     const h = loaded.naturalHeight || loaded.height;
     if (!w || !h) return null;
     return { width: w, height: h };
   } catch (err) {
-    console.warn('获取图片尺寸失败:', err);
     return null;
   }
 }
 
 // 按比例缩小到不超过 maxWidth/maxHeight（不放大）
 async function resizeBase64ToMax(base64: string, mimeType?: string, maxWidth = 2048, maxHeight = 2048): Promise<{ base64: string; width: number; height: number; scale: number } | null> {
-  const size = await getBase64ImageSize(base64, mimeType);
+  const size = await getImageSize(base64, mimeType);
   if (!size) return null;
   const { width, height } = size;
   const scale = Math.min(maxWidth / width, maxHeight / height, 1);
@@ -94,12 +223,12 @@ async function resizeBase64ToMax(base64: string, mimeType?: string, maxWidth = 2
   canvas.height = targetH;
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
-  const url = `data:${mimeType || 'image/png'};base64,${base64}`;
+  const url = `data:${mimeType || 'image/png'};base64,${normalizeBase64(stripBase64Header(base64))}`;
   const img = await new Promise<HTMLImageElement>((resolve, reject) => {
     const i = new Image();
     i.crossOrigin = 'anonymous';
     i.onload = () => resolve(i);
-    i.onerror = reject;
+    i.onerror = () => reject(new Error('Failed to load image during resize'));
     i.src = url;
   });
   ctx.drawImage(img, 0, 0, targetW, targetH);
@@ -110,11 +239,11 @@ async function resizeBase64ToMax(base64: string, mimeType?: string, maxWidth = 2
 // 按指定因子缩放（用于与基图保持一致比例）
 async function scaleBase64ByFactor(base64: string, mimeType: string | undefined, factor: number): Promise<{ base64: string; width: number; height: number } | null> {
   if (factor === 1) {
-    const size = await getBase64ImageSize(base64, mimeType);
+    const size = await getImageSize(base64, mimeType);
     if (!size) return { base64, width: 0, height: 0 };
     return { base64, width: size.width, height: size.height };
   }
-  const size = await getBase64ImageSize(base64, mimeType);
+  const size = await getImageSize(base64, mimeType);
   if (!size) return null;
   const targetW = Math.max(1, Math.floor(size.width * factor));
   const targetH = Math.max(1, Math.floor(size.height * factor));
@@ -128,7 +257,7 @@ async function scaleBase64ByFactor(base64: string, mimeType: string | undefined,
     const i = new Image();
     i.crossOrigin = 'anonymous';
     i.onload = () => resolve(i);
-    i.onerror = reject;
+    i.onerror = () => reject(new Error('Failed to load image during scale'));
     i.src = url;
   });
   ctx.drawImage(img, 0, 0, targetW, targetH);
@@ -148,7 +277,7 @@ async function letterboxToAspectRatio(base64: string, mimeType: string, targetAs
   const img = await new Promise<HTMLImageElement>((resolve, reject) => {
     const i = new Image();
     i.onload = () => resolve(i);
-    i.onerror = reject;
+    i.onerror = () => reject(new Error('Failed to load image for letterbox AR'));
     i.src = url;
   });
 
@@ -198,7 +327,7 @@ async function letterboxToFixedSize(base64: string, mimeType: string, targetW: n
   const img = await new Promise<HTMLImageElement>((resolve, reject) => {
     const i = new Image();
     i.onload = () => resolve(i);
-    i.onerror = reject;
+    i.onerror = () => reject(new Error('Failed to load image for letterbox fixed size'));
     i.src = url;
   });
 
@@ -235,27 +364,41 @@ async function letterboxToFixedSize(base64: string, mimeType: string, targetW: n
 // whatai.cc 统一 API 调用函数
 async function whataiFetch(path: string, init: RequestInit): Promise<Response> {
   const useDevProxy = IS_BROWSER && PROXY_VIA_VITE;
-  const url = useDevProxy ? `/proxy-whatai${path}` : `${WHATAI_BASE_URL}${path}`;
+  const proxyUrl = `/proxy-whatai${path}`;
+  const directUrl = `${WHATAI_BASE_URL}${path}`;
   const headers = new Headers(init.headers || {});
-  
-  if (!useDevProxy && WHATAI_API_KEY) {
-    headers.set('Authorization', `Bearer ${WHATAI_API_KEY}`);
-  }
+  const clientKey = IS_BROWSER ? localStorage.getItem('WHATAI_API_KEY') || '' : '';
+  if (clientKey) headers.set('Authorization', `Bearer ${clientKey}`);
+  else if (!useDevProxy && WHATAI_API_KEY) headers.set('Authorization', `Bearer ${WHATAI_API_KEY}`);
   if (!headers.has('Accept')) headers.set('Accept', 'application/json');
-  
-  // 只有在不是 FormData 时才设置 Content-Type
   if (!headers.has('Content-Type') && !(init.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json');
   }
-  
   const finalInit: RequestInit = { ...init, headers };
-  const resp = await withRetry(() => fetch(url, finalInit), { retries: 3, baseDelayMs: 800 });
-  
+  let resp: Response | null = null;
+  let firstError: any = null;
+  const primaryUrl = useDevProxy ? proxyUrl : directUrl;
+  try {
+    resp = await withRetry(() => fetch(primaryUrl, finalInit), { retries: 3, baseDelayMs: 800 });
+    if (useDevProxy && (!resp.ok && resp.status === 404)) {
+      resp = null;
+      throw new Error('proxy 404');
+    }
+  } catch (err) {
+    firstError = err;
+  }
+  if (!resp) {
+    try {
+      resp = await withRetry(() => fetch(directUrl, finalInit), { retries: 3, baseDelayMs: 800 });
+    } catch (err2) {
+      const e = firstError || err2;
+      throw e instanceof Error ? e : new Error(String(e));
+    }
+  }
   if (!resp.ok) {
     const text = await resp.text().catch(() => "");
     throw new Error(`whatai API Error: ${resp.status} ${resp.statusText} ${text}`);
   }
-  
   return resp;
 }
 
@@ -300,7 +443,6 @@ async function whataiImageEdit(body: any): Promise<any> {
   formData.append('model', body.model);
   formData.append('prompt', body.prompt);
   if (body.aspect_ratio) formData.append('aspect_ratio', body.aspect_ratio);
-  if (body.response_format) formData.append('response_format', body.response_format);
   // 可选固定尺寸（如提供）
   if (body.size) formData.append('size', body.size);
   
@@ -316,18 +458,37 @@ async function whataiImageEdit(body: any): Promise<any> {
     formData.append('mask', maskBlob, 'mask.png');
   }
   
-  const resp = await whataiFetch('/v1/images/edits', {
-    method: 'POST',
-    body: formData, // 使用 FormData 而不是 JSON
-  });
-  
-  const contentType = resp.headers.get('content-type') || '';
-  if (!contentType.includes('application/json')) {
-    const text = await resp.text();
-    throw new Error(`whatai returned non-JSON (${contentType}): ${text.substring(0, 200)}`);
+  try {
+    const resp = await whataiFetch('/v1/images/edits', {
+      method: 'POST',
+      body: formData,
+    });
+    const contentType = resp.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const text = await resp.text();
+      throw new Error(`whatai returned non-JSON (${contentType}): ${text.substring(0, 200)}`);
+    }
+    return await resp.json();
+  } catch (err) {
+    const jsonBody: any = {
+      model: body.model,
+      prompt: body.prompt,
+    };
+    if (body.aspect_ratio) jsonBody.aspect_ratio = body.aspect_ratio;
+    if (body.size) jsonBody.size = body.size;
+    if (body.image) jsonBody.image = body.image;
+    if (body.mask) jsonBody.mask = body.mask;
+    const resp2 = await whataiFetch('/v1/images/edits', {
+      method: 'POST',
+      body: JSON.stringify(jsonBody),
+    });
+    const ct2 = resp2.headers.get('content-type') || '';
+    if (!ct2.includes('application/json')) {
+      const text2 = await resp2.text();
+      throw new Error(`whatai returned non-JSON (${ct2}): ${text2.substring(0, 200)}`);
+    }
+    return await resp2.json();
   }
-  
-  return await resp.json();
 }
 
 type ImageInput = {
@@ -336,7 +497,7 @@ type ImageInput = {
 };
 
 // 文本生成图像
-export async function generateImageFromText(prompt: string): Promise<{ 
+export async function generateImageFromText(prompt: string, model?: string, opts?: { aspectRatio?: string }): Promise<{ 
   newImageBase64: string | null; 
   newImageMimeType: string | null; 
   textResponse: string | null; 
@@ -350,74 +511,80 @@ export async function generateImageFromText(prompt: string): Promise<{
   }
 
   try {
-    const body = {
-      model: WHATAI_IMAGE_GENERATION_MODEL, // nano-banana 默认
-      prompt: prompt,
-      aspect_ratio: "1:1",
-      response_format: "url" // 按 nano-banana 规范，支持 url 或 b64_json
-    };
-
-    console.log('[generations] 请求体:', JSON.stringify(body, null, 2));
-    console.log('[generations] 使用模型:', WHATAI_IMAGE_GENERATION_MODEL);
-    console.log('[generations] 端点: /v1/images/generations (Nano-banana)');
-    
-    const result = await whataiImageGeneration(body);
-    console.log('[generations] 完整响应:', JSON.stringify(result, null, 2));
-    
-    // 图像生成模型可能返回base64或URL，需要检查响应格式
-    if (result.data && result.data[0]) {
-      const imageData = result.data[0];
-      
-      // 检查是否有base64数据
-      if (imageData.b64_json) {
-        return {
-          newImageBase64: imageData.b64_json,
-          newImageMimeType: "image/png",
-          textResponse: `使用 ${WHATAI_IMAGE_GENERATION_MODEL} 模型成功生成图像`
-        };
-      }
-      
-      // 检查是否有URL
-      if (imageData.url) {
-        try {
-          const imageResponse = await fetch(imageData.url);
-          const imageBlob = await imageResponse.blob();
+    const usedModel = model || WHATAI_IMAGE_GENERATION_MODEL;
+    const content: any[] = [];
+    const outputInstr = '只输出一行 data:image/png;base64,<...> 不要输出其它文字';
+    const textPayload = opts?.aspectRatio ? `${prompt}\n[aspect_ratio:${opts.aspectRatio}]\n${outputInstr}` : `${prompt}\n${outputInstr}`;
+    content.push({ type: "text", text: textPayload });
+    const chat = await whataiChatCompletions({ model: usedModel, messages: [{ role: "user", content }], max_tokens: 1000 });
+    const msg = chat && chat.choices && chat.choices[0] && chat.choices[0].message;
+    if (msg) {
+      const mc = msg.content;
+      if (typeof mc === 'string') {
+        const s = mc as string;
+        const ex = extractDataUrlFromText(s);
+        if (ex) {
+          return { newImageBase64: ex.base64, newImageMimeType: ex.mime, textResponse: `使用 ${usedModel} 模型成功生成图像` };
+        }
+        if (s.includes('http')) {
+          const r = await fetch(s);
+          const ct = r.headers.get('content-type') || '';
+          if (!ct.startsWith('image/')) {
+            return { newImageBase64: null, newImageMimeType: null, textResponse: `图像获取失败：非图像内容(${ct || 'unknown'})` };
+          }
+          const blob = await r.blob();
           const reader = new FileReader();
-          
-          return new Promise((resolve) => {
+          return await new Promise((resolve) => {
             reader.onload = () => {
-              const base64 = (reader.result as string).split(',')[1];
-              resolve({
-                newImageBase64: base64,
-                newImageMimeType: "image/png",
-                textResponse: `使用 ${WHATAI_IMAGE_GENERATION_MODEL} 模型成功生成图像（Nano-banana)`
-              });
+              let base64 = (reader.result as string).split(',')[1];
+              base64 = normalizeBase64(base64);
+              const mime = (blob.type && blob.type.startsWith('image/')) ? blob.type : detectMimeFromBase64(base64);
+              resolve({ newImageBase64: base64, newImageMimeType: mime, textResponse: `使用 ${usedModel} 模型成功生成图像` });
             };
-            reader.readAsDataURL(imageBlob);
+            reader.readAsDataURL(blob);
           });
-        } catch (fetchError) {
-          console.error('获取图像URL失败:', fetchError);
-          return {
-            newImageBase64: null,
-            newImageMimeType: null,
-            textResponse: `图像获取失败: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`
-          };
+        }
+      } else if (Array.isArray(mc)) {
+        for (const part of mc) {
+          const inl = extractInlineData(part);
+          if (inl) {
+            return { newImageBase64: inl.base64, newImageMimeType: inl.mime, textResponse: `使用 ${usedModel} 模型成功生成图像` };
+          }
+          if (part && part.type === 'image_url' && part.image_url && part.image_url.url) {
+            const url = part.image_url.url as string;
+            if (url.startsWith('data:image/')) {
+              const ex2 = extractDataUrlFromText(url);
+              if (ex2) return { newImageBase64: ex2.base64, newImageMimeType: ex2.mime, textResponse: `使用 ${usedModel} 模型成功生成图像` };
+            } else {
+              const r = await fetch(url);
+              const ct2 = r.headers.get('content-type') || '';
+              if (!ct2.startsWith('image/')) {
+                return { newImageBase64: null, newImageMimeType: null, textResponse: `图像获取失败：非图像内容(${ct2 || 'unknown'})` };
+              }
+              const blob = await r.blob();
+              const reader = new FileReader();
+              return await new Promise((resolve) => {
+                reader.onload = () => {
+                  let base64 = (reader.result as string).split(',')[1];
+                  base64 = normalizeBase64(base64);
+                  const mime = (blob.type && blob.type.startsWith('image/')) ? blob.type : detectMimeFromBase64(base64);
+                  resolve({ newImageBase64: base64, newImageMimeType: mime, textResponse: `使用 ${usedModel} 模型成功生成图像` });
+                };
+                reader.readAsDataURL(blob);
+              });
+            }
+          }
         }
       }
     }
-    
-    return {
-      newImageBase64: null,
-      newImageMimeType: null,
-      textResponse: "图像生成失败：API 返回格式异常"
-    };
+    return { newImageBase64: null, newImageMimeType: null, textResponse: "图像生成失败：未找到输出" };
     
   } catch (error) {
-    console.error('whatai 图像生成失败:', error);
+    console.error('whatai 图像生成失败:', error instanceof Error ? error.message : (typeof error === 'string' ? error : JSON.stringify(error)));
     return {
       newImageBase64: null,
       newImageMimeType: null,
-      textResponse: `图像生成失败: ${error instanceof Error ? error.message : String(error)}`
+      textResponse: `图像生成失败: ${error instanceof Error ? error.message : (typeof error === 'string' ? error : JSON.stringify(error))}`
     };
   }
 }
@@ -488,153 +655,160 @@ export async function editImage(
     }
 
     // 计算目标尺寸为首图（预处理后）的实际像素尺寸
-    const baseSize = await getBase64ImageSize(preparedImagesBase64[0], first.mimeType);
+  const baseSize = await getImageSize(preparedImagesBase64[0], first.mimeType);
     const targetW = baseSize?.width;
     const targetH = baseSize?.height;
 
-    // 有遮罩 → 使用编辑接口；无遮罩 → 使用生成接口（Nano-banana 支持 aspect_ratio）
-    if (mask) {
-      const body: any = {
-        model: WHATAI_IMAGE_EDIT_MODEL,
-        prompt: prompt,
-        ...(aspectRatioFromImage ? { aspect_ratio: aspectRatioFromImage } : {}),
-        response_format: "url",
-        image: preparedImagesBase64[0],
-        mask: preparedMaskBase64
-      };
-      if (targetW && targetH) body.size = `${targetW}x${targetH}`;
-
-      console.log('[editImage] 路径: edits（含遮罩，Nano-banana） /v1/images/edits', {
-        model: WHATAI_IMAGE_EDIT_MODEL,
-        aspect_ratio: aspectRatioFromImage || '未提供',
-        response_format: body.response_format,
-        size: body.size || '未提供'
-      });
-
-      var result = await whataiImageEdit(body);
-    } else {
-      const body: any = {
-        model: WHATAI_IMAGE_GENERATION_MODEL,
-        prompt: prompt,
-        ...(aspectRatioFromImage ? { aspect_ratio: aspectRatioFromImage } : {}),
-        response_format: "url",
-        // 传入所有预处理后的图片，以启用多图参考/组合（参考 nano-banana image 数组）
-        image: preparedImagesBase64
-      };
-      // nano-banana 规范未声明 size 字段，这里不再传递 size；尺寸一致性由客户端严格模式信封适配保证
-
-      console.log('[editImage] 路径: generations（无遮罩，Nano-banana） /v1/images/generations', {
-        model: WHATAI_IMAGE_GENERATION_MODEL,
-        aspect_ratio: aspectRatioFromImage || '未提供',
-        response_format: body.response_format,
-        image_count: preparedImagesBase64.length
-      });
-
-      var result = await whataiImageGeneration(body);
+    const usedModel = mask ? WHATAI_IMAGE_EDIT_MODEL : WHATAI_IMAGE_GENERATION_MODEL;
+    const parts: any[] = [];
+    const arText = aspectRatioFromImage ? `[aspect_ratio:${aspectRatioFromImage}]` : '';
+    const sizeText = targetW && targetH ? `[size:${targetW}x${targetH}]` : '';
+    const outputInstr = '只输出一行 data:image/png;base64,<...> 不要输出其它文字';
+    const ptext = mask ? `${prompt}\n${arText} ${sizeText} [mask:provided]\n${outputInstr}` : `${prompt}\n${arText}\n${outputInstr}`;
+    parts.push({ type: "text", text: ptext.trim() });
+    for (let i = 0; i < preparedImagesBase64.length; i++) {
+      const mime = images[i]?.mimeType || 'image/png';
+      const url = `data:${mime};base64,${preparedImagesBase64[i]}`;
+      parts.push({ type: "image_url", image_url: { url } });
     }
-    
-    if (result.data && result.data[0]) {
-      const imageData = result.data[0];
-      if (imageData.b64_json) {
-        let b64 = imageData.b64_json;
-        const mime = "image/png";
-        // 检查尺寸一致性（首图预处理后尺寸）
-        if (targetW && targetH) {
-          const outSize = await getBase64ImageSize(b64, mime);
-          const sizeMatch = outSize && outSize.width === targetW && outSize.height === targetH;
-          if (!sizeMatch) {
-            if (WHATAI_STRICT_SIZE) {
-              console.error('[editImage] 服务端输出尺寸与首图不一致（严格模式）', { targetW, targetH, actual: outSize });
-              return {
-                newImageBase64: null,
-                newImageMimeType: null,
-                textResponse: `图像编辑失败：服务端未按尺寸输出（期望 ${targetW}x${targetH}）`
-              };
-            } else {
-              // 非严格模式：进行固定尺寸信封适配
-              b64 = await letterboxToFixedSize(b64, mime, targetW, targetH);
-              console.log('[editImage] 服务端输出尺寸不一致，已用固定尺寸信封适配到目标尺寸:', { targetW, targetH, actual: outSize });
-            }
-          }
-        } else if (aspectRatioFromImage) {
-          // 若无法获取目标尺寸，则至少保证比例一致
-          const outAr = await computeAspectRatioFromBase64(b64, mime);
-          if (outAr && outAr !== aspectRatioFromImage) {
-            b64 = await letterboxToAspectRatio(b64, mime, aspectRatioFromImage);
-            console.log('[editImage] 服务端输出比例与原图不一致，已用信封适配到目标比例:', { target: aspectRatioFromImage, actual: outAr });
+    if (preparedMaskBase64) {
+      const maskUrl = `data:${mask?.mimeType || 'image/png'};base64,${preparedMaskBase64}`;
+      parts.push({ type: "image_url", image_url: { url: maskUrl } });
+    }
+    console.log('[editImage] 路径: chat/completions(修改图片)', { model: usedModel, partsCount: parts.length });
+    const hasText = parts.some(p => p && p.type === 'text');
+    const imgCount = parts.filter(p => p && p.type === 'image_url').length;
+    const firstImg = parts.find(p => p && p.type === 'image_url');
+    const previewUrl = firstImg && firstImg.image_url && typeof firstImg.image_url.url === 'string' ? String(firstImg.image_url.url).slice(0, 80) : undefined;
+    console.log('[editImage] chat content', { hasText, imageCount: imgCount, preview: previewUrl });
+    const chat = await whataiChatCompletions({ model: usedModel, messages: [{ role: "user", content: parts }], max_tokens: 1500 });
+    const msg = chat && chat.choices && chat.choices[0] && chat.choices[0].message;
+    if (msg) {
+      try {
+        let kind = 'unknown';
+        let hint: string | undefined = undefined;
+        const mc0: any = msg.content;
+        if (typeof mc0 === 'string') {
+          kind = 'string';
+          hint = mc0.slice(0, 80);
+        } else if (Array.isArray(mc0)) {
+          kind = 'array';
+          const first = mc0[0];
+          if (first && first.type === 'image_url' && first.image_url && first.image_url.url) {
+            hint = String(first.image_url.url).slice(0, 80);
+          } else if (first && first.b64_json) {
+            hint = String(first.b64_json).slice(0, 80);
+          } else if (first && first.inlineData && first.inlineData.data) {
+            hint = String(first.inlineData.data).slice(0, 80);
           }
         }
-        return {
-          newImageBase64: b64,
-          newImageMimeType: mime,
-          textResponse: `使用 ${WHATAI_IMAGE_EDIT_MODEL} 模型成功编辑图像（Nano-banana)`
-        };
-      }
-      if (imageData.url) {
-        try {
-          const imageResponse = await fetch(imageData.url);
-          const imageBlob = await imageResponse.blob();
-          const reader = new FileReader();
-          return new Promise((resolve) => {
-            reader.onload = async () => {
-              let base64 = (reader.result as string).split(',')[1];
-              const mime = "image/png";
-              // 尺寸一致性检查（URL 输出）
-              if (targetW && targetH) {
-                const outSize = await getBase64ImageSize(base64, mime);
-                const sizeMatch = outSize && outSize.width === targetW && outSize.height === targetH;
-                if (!sizeMatch) {
-                  if (WHATAI_STRICT_SIZE) {
-                    console.error('[editImage] URL输出尺寸与首图不一致（严格模式）', { targetW, targetH, actual: outSize });
-                    resolve({
-                      newImageBase64: null,
-                      newImageMimeType: null,
-                      textResponse: `图像编辑失败：服务端未按尺寸输出（期望 ${targetW}x${targetH}）`
-                    });
-                    return;
-                  } else {
-                    base64 = await letterboxToFixedSize(base64, mime, targetW, targetH);
-                    console.log('[editImage] URL输出尺寸不一致，已用固定尺寸信封适配到目标尺寸:', { targetW, targetH, actual: outSize });
-                  }
-                }
-              } else if (aspectRatioFromImage) {
-                const outAr = await computeAspectRatioFromBase64(base64, mime);
-                if (outAr && outAr !== aspectRatioFromImage) {
-                  base64 = await letterboxToAspectRatio(base64, mime, aspectRatioFromImage);
-                  console.log('[editImage] URL输出比例与原图不一致，已用信封适配到目标比例:', { target: aspectRatioFromImage, actual: outAr });
+        console.log('[editImage] chat content preview', { kind, hint });
+      } catch {}
+      const mc = msg.content;
+      if (typeof mc === 'string') {
+        const s = mc as string;
+        const ex = extractDataUrlFromText(s);
+        if (ex) {
+          let b64 = ex.base64;
+          const mime = ex.mime;
+          if (targetW && targetH) {
+            try {
+            const outSize = await getImageSize(b64, mime);
+              const ok = outSize && outSize.width === targetW && outSize.height === targetH;
+              if (!ok) {
+                if (WHATAI_STRICT_SIZE) {
+                  return { newImageBase64: null, newImageMimeType: null, textResponse: `图像编辑失败：服务端未按尺寸输出（期望 ${targetW}x${targetH}）` };
+                } else {
+                  try { b64 = await letterboxToFixedSize(b64, mime, targetW, targetH); } catch {}
                 }
               }
-              resolve({
-                newImageBase64: base64,
-                newImageMimeType: mime,
-                textResponse: `使用 ${WHATAI_IMAGE_EDIT_MODEL} 模型成功编辑图像（Nano-banana)`
-              });
+            } catch {}
+          } else if (aspectRatioFromImage) {
+            try {
+              const outAr = await computeAspectRatioFromBase64(b64, mime);
+              if (outAr && outAr !== aspectRatioFromImage) {
+                try { b64 = await letterboxToAspectRatio(b64, mime, aspectRatioFromImage); } catch {}
+              }
+            } catch {}
+          }
+          return { newImageBase64: b64, newImageMimeType: mime, textResponse: `使用 ${usedModel} 模型成功编辑图像` };
+        }
+        if (s.includes('http')) {
+          const r = await fetch(s);
+          const blob = await r.blob();
+          const reader = new FileReader();
+          return await new Promise((resolve) => {
+            reader.onload = async () => {
+              let base64 = (reader.result as string).split(',')[1];
+              base64 = normalizeBase64(base64);
+              const mime = blob.type || detectMimeFromBase64(base64);
+              if (targetW && targetH) {
+                try {
+                  const outSize = await getImageSize(base64, mime);
+                  const ok = outSize && outSize.width === targetW && outSize.height === targetH;
+                  if (!ok) {
+                    if (WHATAI_STRICT_SIZE) {
+                      resolve({ newImageBase64: null, newImageMimeType: null, textResponse: `图像编辑失败：服务端未按尺寸输出（期望 ${targetW}x${targetH}）` });
+                      return;
+                    } else {
+                      try { base64 = await letterboxToFixedSize(base64, mime, targetW, targetH); } catch {}
+                    }
+                  }
+                } catch {}
+              } else if (aspectRatioFromImage) {
+                try {
+                  const outAr = await computeAspectRatioFromBase64(base64, mime);
+                  if (outAr && outAr !== aspectRatioFromImage) {
+                    try { base64 = await letterboxToAspectRatio(base64, mime, aspectRatioFromImage); } catch {}
+                  }
+                } catch {}
+              }
+              resolve({ newImageBase64: base64, newImageMimeType: mime, textResponse: `使用 ${usedModel} 模型成功编辑图像` });
             };
-            reader.readAsDataURL(imageBlob);
+            reader.readAsDataURL(blob);
           });
-        } catch (fetchError) {
-          console.error('获取编辑图像URL失败:', fetchError);
-          return {
-            newImageBase64: null,
-            newImageMimeType: null,
-            textResponse: `图像获取失败: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`
-          };
+        }
+      }
+      if (Array.isArray(mc)) {
+        for (const part of mc) {
+          if (part && part.type === 'image_url' && part.image_url && part.image_url.url) {
+            const url = part.image_url.url as string;
+            if (url.startsWith('data:image/')) {
+              const ex2 = extractDataUrlFromText(url);
+              if (!ex2) {
+                continue;
+              }
+              return { newImageBase64: ex2.base64, newImageMimeType: ex2.mime, textResponse: `使用 ${usedModel} 模型成功编辑图像` };
+            } else {
+              const r = await fetch(url);
+              const ct3 = r.headers.get('content-type') || '';
+              if (!ct3.startsWith('image/')) {
+                return { newImageBase64: null, newImageMimeType: null, textResponse: `图像编辑失败：非图像内容(${ct3 || 'unknown'})` };
+              }
+              const blob = await r.blob();
+              const reader = new FileReader();
+              return await new Promise((resolve) => {
+                reader.onload = () => {
+                  let base64 = (reader.result as string).split(',')[1];
+                  base64 = normalizeBase64(base64);
+                  const mime = (blob.type && blob.type.startsWith('image/')) ? blob.type : detectMimeFromBase64(base64);
+                  resolve({ newImageBase64: base64, newImageMimeType: mime, textResponse: `使用 ${usedModel} 模型成功编辑图像` });
+                };
+                reader.readAsDataURL(blob);
+              });
+            }
+          }
         }
       }
     }
-    
-    return {
-      newImageBase64: null,
-      newImageMimeType: null,
-      textResponse: "图像编辑失败：API 返回格式异常"
-    };
+    return { newImageBase64: null, newImageMimeType: null, textResponse: "图像编辑失败：未找到输出" };
     
   } catch (error) {
-    console.error('whatai 图像编辑失败:', error);
+    console.error('whatai 图像编辑失败:', error instanceof Error ? error.message : (typeof error === 'string' ? error : JSON.stringify(error)));
     return {
       newImageBase64: null,
       newImageMimeType: null,
-      textResponse: `图像编辑失败: ${error instanceof Error ? error.message : String(error)}`
+      textResponse: `图像编辑失败: ${error instanceof Error ? error.message : (typeof error === 'string' ? error : JSON.stringify(error))}`
     };
   }
 }
@@ -756,4 +930,10 @@ export async function generateText(
     console.error('whatai 文本生成失败:', error);
     throw new Error(`文本生成失败: ${error instanceof Error ? error.message : String(error)}`);
   }
+}
+
+export async function runSizeProbe(): Promise<{ png: { width: number; height: number } | null }> {
+  const pngB64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9YbODXcAAAAASUVORK5CYII=';
+  const size = await getImageSize(pngB64, 'image/png');
+  return { png: size || null };
 }
