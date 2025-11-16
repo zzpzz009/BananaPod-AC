@@ -2238,6 +2238,7 @@ const [drawingOptions, setDrawingOptions] = useState({ strokeColor: '#FF0000', s
                     return (
                         <div style={{ top: contextMenu.y, left: contextMenu.x }} className="absolute z-30 bg-white rounded-md shadow-lg border border-gray-200 text-sm py-1 text-gray-800" onContextMenu={e => e.stopPropagation()}>
                            {isGroupable && <button onClick={handleGroup} className="block w-full text-left px-4 py-1.5 hover:bg-gray-100">{t('contextMenu.group')}</button>}
+                           {isGroupable && <button onClick={() => handleMergeLayers('selected')} className="block w-full text-left px-4 py-1.5 hover:bg-gray-100">{t('contextMenu.mergeLayers')}</button>}
                            {isUngroupable && <button onClick={handleUngroup} className="block w-full text-left px-4 py-1.5 hover:bg-gray-100">{t('contextMenu.ungroup')}</button>}
                            {(isGroupable || isUngroupable) && <div className="border-t border-gray-100 my-1"></div>}
                             
