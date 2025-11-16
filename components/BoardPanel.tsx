@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import type { Board } from '../types';
+import type { Board } from '@/types';
 
 interface BoardPanelProps {
     isOpen: boolean;

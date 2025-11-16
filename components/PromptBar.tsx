@@ -1,7 +1,7 @@
 import React from 'react';
 import { QuickPrompts } from './QuickPrompts';
 // BananaSidebar moved to App-level overlay; keep PromptBar focused on input controls
-import type { UserEffect, GenerationMode } from '../types';
+import type { UserEffect, GenerationMode } from '@/types';
 
 interface PromptBarProps {
     t: (key: string, ...args: unknown[]) => string;

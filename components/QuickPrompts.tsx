@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import type { UserEffect } from '../types';
+import type { UserEffect } from '@/types';
 
 interface QuickPromptsProps {
     t: (key: string, ...args: unknown[]) => unknown;

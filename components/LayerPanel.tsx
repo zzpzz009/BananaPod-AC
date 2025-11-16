@@ -2,7 +2,7 @@
 
 
 import React, { useState, useRef, useEffect } from 'react';
-import type { Element } from '../types';
+import type { Element } from '@/types';
 
 interface LayerPanelProps {
     isOpen: boolean;
